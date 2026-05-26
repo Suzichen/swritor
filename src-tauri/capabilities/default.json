@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "Default capability for S-Blog Admin",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "opener:default",
+    "opener:allow-reveal-item-in-dir"
+  ]
+}

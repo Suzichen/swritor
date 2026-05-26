@@ -1,0 +1,42 @@
+[package]
+name = "s-blog-admin"
+version = "0.1.0"
+description = "S-Blog Admin - 博客管理桌面应用程序"
+authors = ["S-Blog Team"]
+edition = "2021"
+
+[lib]
+name = "s_blog_admin_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+flate2 = "1"
+tar = "0.4"
+s-blog-engine = { path = "../../s-blog/crates/s-blog-engine" }
+# 发布后切换为 git 依赖：
+# s-blog-engine = { git = "https://github.com/Suzichen/s-blog.git", path = "crates/s-blog-engine" }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+# ── 使用 git 依赖后，本地联调时取消注释 ──
+# [patch."https://github.com/Suzichen/s-blog.git"]
+# s-blog-engine = { path = "../../s-blog/crates/s-blog-engine" }
