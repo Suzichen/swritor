@@ -3,147 +3,34 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+  font-family: "Roboto", "Noto Sans SC", sans-serif;
+  color-scheme: light;
 }
 
-/* 响应式基础设置 - 需求 7.3 */
-html {
-  box-sizing: border-box;
-}
-
-*, *::before, *::after {
-  box-sizing: inherit;
-}
-
-body {
+html, body, #root {
   margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  overflow-x: hidden;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
-#root {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+/* mdui layout overrides */
+mdui-navigation-drawer {
+  --shape-corner: 0;
 }
 
-/* 响应式断点样式 - 需求 7.3 */
-@layer components {
-  /* 页面容器响应式样式 */
-  .page-container {
-    @apply w-full min-h-screen p-4;
-  }
-
-  /* 小屏幕 (< 640px) */
-  @media (max-width: 639px) {
-    .page-container {
-      @apply p-2;
-    }
-  }
-
-  /* 中等屏幕 (640px - 1023px) */
-  @media (min-width: 640px) and (max-width: 1023px) {
-    .page-container {
-      @apply p-4;
-    }
-  }
-
-  /* 大屏幕 (>= 1024px) */
-  @media (min-width: 1024px) {
-    .page-container {
-      @apply p-6;
-    }
-  }
-
-  /* 内容卡片响应式样式 */
-  .content-card {
-    @apply bg-white rounded-lg shadow-md;
-  }
-
-  @media (max-width: 639px) {
-    .content-card {
-      @apply p-4 rounded-md;
-    }
-  }
-
-  @media (min-width: 640px) {
-    .content-card {
-      @apply p-6;
-    }
-  }
-
-  /* 日志面板响应式样式 - 需求 7.4 */
-  .log-panel-container {
-    @apply w-full;
-    min-height: 200px;
-    max-height: calc(100vh - 300px);
-  }
-
-  @media (max-width: 639px) {
-    .log-panel-container {
-      min-height: 150px;
-      max-height: 250px;
-    }
-  }
-
-  @media (min-width: 640px) and (max-width: 1023px) {
-    .log-panel-container {
-      min-height: 200px;
-      max-height: 350px;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .log-panel-container {
-      min-height: 250px;
-      max-height: 450px;
-    }
-  }
+mdui-layout {
+  height: 100vh;
 }
 
-/* 确保滚动条样式一致 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+mdui-layout-main {
+  overflow-y: auto;
 }
 
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+.post-list-item {
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
-
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
-}
-
-/* 表单元素响应式间距 */
-@layer utilities {
-  .form-spacing {
-    @apply space-y-4;
-  }
-
-  @media (max-width: 639px) {
-    .form-spacing {
-      @apply space-y-3;
-    }
-  }
+.post-list-item:hover {
+  background-color: var(--mdui-color-surface-container);
 }

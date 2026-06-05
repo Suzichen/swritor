@@ -23,9 +23,7 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
 flate2 = "1"
 tar = "0.4"
-s-blog-engine = { path = "../../s-blog/crates/s-blog-engine" }
-# 发布后切换为 git 依赖：
-# s-blog-engine = { git = "https://github.com/Suzichen/s-blog.git", path = "crates/s-blog-engine" }
+
 
 [profile.release]
 panic = "abort"
@@ -37,6 +35,3 @@ strip = true
 [dev-dependencies]
 tempfile = "3.27.0"
 
-# ── 使用 git 依赖后，本地联调时取消注释 ──
-# [patch."https://github.com/Suzichen/s-blog.git"]
-# s-blog-engine = { path = "../../s-blog/crates/s-blog-engine" }

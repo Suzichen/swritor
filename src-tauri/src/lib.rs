@@ -3,9 +3,7 @@ pub mod error;
 pub mod models;
 pub mod template_fetcher;
 
-use commands::{
-    check_directory_exists, init_blog, open_in_explorer, read_directory_tree, select_directory,
-};
+use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,6 +16,14 @@ pub fn run() {
             read_directory_tree,
             init_blog,
             open_in_explorer,
+            list_posts,
+            get_post,
+            save_post,
+            delete_post,
+            create_post,
+            list_albums,
+            read_config,
+            write_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
