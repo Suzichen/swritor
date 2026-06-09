@@ -3,7 +3,7 @@
  * 用法: node scripts/sync-template.js
  */
 import { execSync } from 'node:child_process';
-import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -15,7 +15,7 @@ try {
   execSync(`npm pack create-s-blog --pack-destination="${tmpDir}"`, { stdio: 'pipe' });
 
   // 找到 tgz 文件
-  const tgz = execSync(`dir /b "${tmpDir}\\*.tgz"`, { encoding: 'utf-8' }).trim();
+  const files = readdirSync(tmpDir); const tgz = files.find(f => f.endsWith(".tgz")); if (!tgz) throw new Error("No .tgz file found downloaded");
   const tgzPath = join(tmpDir, tgz);
   console.log(`   ${tgz}`);
 
