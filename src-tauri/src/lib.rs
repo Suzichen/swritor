@@ -24,6 +24,8 @@ pub fn run() {
             list_albums,
             read_config,
             write_config,
+            select_image,
+            copy_to_public,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

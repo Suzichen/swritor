@@ -190,6 +190,28 @@ pub async fn write_config(blog_dir: String, filename: String, content: String) -
     fs::write(&path, &content).map_err(|e| e.to_string())
 }
 
+// ── 图片相关 ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn select_image(app: AppHandle) -> Result<Option<String>, String> {
+    let file = app
+        .dialog()
+        .file()
+        .set_title("选择图片")
+        .add_filter("图片", &["png", "jpg", "jpeg", "ico", "svg", "webp", "gif"])
+        .blocking_pick_file();
+    Ok(file.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+pub async fn copy_to_public(blog_dir: String, source: String, filename: String) -> Result<(), String> {
+    let public_dir = Path::new(&blog_dir).join("public");
+    fs::create_dir_all(&public_dir).map_err(|e| e.to_string())?;
+    let dest = public_dir.join(&filename);
+    fs::copy(&source, &dest).map_err(|e| format!("复制文件失败: {e}"))?;
+    Ok(())
+}
+
 // ── 初始化相关 ────────────────────────────────────────────
 
 #[tauri::command]

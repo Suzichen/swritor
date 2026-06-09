@@ -3319,6 +3319,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 [[package]]
 name = "s-blog-scaffold"
 version = "0.1.0"
+source = "git+https://github.com/Suzichen/s-blog.git#713a5d00045229efaa6020e5785e851fb49eac30"
 dependencies = [
  "json_comments",
  "serde",

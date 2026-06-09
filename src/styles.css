@@ -34,3 +34,9 @@ mdui-layout-main {
 .post-list-item:hover {
   background-color: var(--mdui-color-surface-container);
 }
+
+/* 限制 mdui-select 下拉菜单高度，超出滚动 */
+mdui-select::part(menu) {
+  max-height: 280px;
+  overflow-y: auto;
+}
