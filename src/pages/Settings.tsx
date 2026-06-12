@@ -18,8 +18,17 @@ interface Props {
   blogDir: string;
 }
 
+interface AlbumProvider {
+  type: string;
+  endpoint: string;
+  region: string;
+  bucket: string;
+  publicUrl: string;
+}
+
 export function Settings({ blogDir }: Props) {
   const configRef = useRef<any>(null);
+  const albumConfigRef = useRef<any>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -41,7 +50,17 @@ export function Settings({ blogDir }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
-  const [albumConfig, setAlbumConfig] = useState("");
+
+  // Album settings
+  const [albumEnabled, setAlbumEnabled] = useState(false);
+  const [albumProvider, setAlbumProvider] = useState<AlbumProvider>({ type: "s3", endpoint: "", region: "", bucket: "", publicUrl: "" });
+  const [s3AccessKey, setS3AccessKey] = useState("");
+  const [s3SecretKey, setS3SecretKey] = useState("");
+
+  // Version
+  const [shellVersion, setShellVersion] = useState<string | null>(null);
+  const [engineVersion, setEngineVersion] = useState("");
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => { loadConfig(); }, [blogDir]);
 
@@ -72,8 +91,35 @@ export function Settings({ blogDir }: Props) {
     setPendingLogo(null);
     setPendingFavicon(null);
 
+    // Load album config
     const albumRes = await invoke<{ raw: string }>("read_config", { blogDir, filename: "album.config.json" });
-    setAlbumConfig(albumRes.raw);
+    try {
+      const albumParsed = parseConfig(albumRes.raw);
+      albumConfigRef.current = albumParsed;
+      setAlbumEnabled(albumParsed.enabled ?? false);
+      if (albumParsed.provider) {
+        setAlbumProvider({
+          type: albumParsed.provider.type ?? "s3",
+          endpoint: albumParsed.provider.endpoint ?? "",
+          region: albumParsed.provider.region ?? "",
+          bucket: albumParsed.provider.bucket ?? "",
+          publicUrl: albumParsed.provider.publicUrl ?? "",
+        });
+      }
+    } catch {
+      albumConfigRef.current = {};
+    }
+
+    // Load .env
+    const env = await invoke<{ s3_access_key: string | null; s3_secret_key: string | null }>("read_env", { blogDir });
+    setS3AccessKey(env.s3_access_key ?? "");
+    setS3SecretKey(env.s3_secret_key ?? "");
+
+    // Load versions
+    const sv = await invoke<string | null>("get_shell_version");
+    setShellVersion(sv);
+    const ev = await invoke<string>("get_engine_version");
+    setEngineVersion(ev);
   };
 
   const handleSave = async () => {
@@ -127,7 +173,23 @@ export function Settings({ blogDir }: Props) {
 
       const content = serializeConfig(obj);
       await invoke("write_config", { blogDir, filename: "config.json", content });
-      await invoke("write_config", { blogDir, filename: "album.config.json", content: albumConfig });
+
+      // Save album config
+      const albumObj = albumConfigRef.current || {};
+      albumObj.enabled = albumEnabled;
+      albumObj.provider = {
+        type: albumProvider.type,
+        endpoint: albumProvider.endpoint,
+        region: albumProvider.region,
+        bucket: albumProvider.bucket,
+        publicUrl: albumProvider.publicUrl,
+      };
+      await invoke("write_config", { blogDir, filename: "album.config.json", content: serializeConfig(albumObj) });
+
+      // Save .env keys
+      if (s3AccessKey || s3SecretKey) {
+        await invoke("write_env", { blogDir, s3AccessKey: s3AccessKey, s3SecretKey: s3SecretKey });
+      }
 
       setPendingLogo(null);
       setPendingFavicon(null);
@@ -136,6 +198,17 @@ export function Settings({ blogDir }: Props) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleUpdateShell = async () => {
+    setUpdating(true);
+    try {
+      const newVersion = await invoke<string>("update_shell_cache");
+      setShellVersion(newVersion);
+    } catch (e) {
+      console.error(e);
+    }
+    setUpdating(false);
   };
 
   const selectImage = async (target: "logo" | "favicon") => {
@@ -154,7 +227,7 @@ export function Settings({ blogDir }: Props) {
   return (
     <div className="p-6 space-y-8 max-w-3xl">
       {/* Header - sticky */}
-      <div className="flex items-center justify-between sticky top-0 z-10 py-4 -mx-6 px-6 bg-[--mdui-color-surface] border-b border-gray-200/60 backdrop-blur">
+      <div className="settings-header flex items-center justify-between sticky top-0 z-10 py-4 -mx-6 px-6 bg-[--mdui-color-surface] border-b border-gray-200/60 backdrop-blur">
         <h2 className="text-xl font-medium">网站设置</h2>
         <mdui-button variant="tonal" loading={saving || undefined} onClick={handleSave}>
           保存
@@ -359,18 +432,77 @@ export function Settings({ blogDir }: Props) {
       <mdui-divider />
 
       {/* 相册设置 */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
           <h2 className="text-xl font-medium">相册设置</h2>
+          <mdui-switch
+            checked={albumEnabled || undefined}
+            onChange={(e: any) => setAlbumEnabled(e.target.checked)}
+          />
         </div>
-        <p className="text-sm text-gray-500 mb-2">album.config.json</p>
-        <textarea
-          className="w-full h-48 p-4 font-mono text-sm border rounded resize-none"
-          value={albumConfig}
-          onChange={(e) => setAlbumConfig(e.target.value)}
-          spellCheck={false}
-        />
+        <div className="space-y-3">
+          <mdui-select
+            variant="outlined"
+            label="存储类型"
+            value={albumProvider.type}
+            disabled={!albumEnabled || undefined}
+            onChange={(e: any) => setAlbumProvider({ ...albumProvider, type: e.target.value })}
+          >
+            <mdui-menu-item value="s3">S3 兼容存储</mdui-menu-item>
+          </mdui-select>
+          <mdui-text-field
+            variant="outlined"
+            label="Endpoint"
+            value={albumProvider.endpoint}
+            disabled={!albumEnabled || undefined}
+            placeholder="https://s3.amazonaws.com"
+            onInput={(e: any) => setAlbumProvider({ ...albumProvider, endpoint: e.target.value })}
+          />
+          <mdui-text-field
+            variant="outlined"
+            label="Region"
+            value={albumProvider.region}
+            disabled={!albumEnabled || undefined}
+            placeholder="us-east-1"
+            onInput={(e: any) => setAlbumProvider({ ...albumProvider, region: e.target.value })}
+          />
+          <mdui-text-field
+            variant="outlined"
+            label="Bucket"
+            value={albumProvider.bucket}
+            disabled={!albumEnabled || undefined}
+            onInput={(e: any) => setAlbumProvider({ ...albumProvider, bucket: e.target.value })}
+          />
+          <mdui-text-field
+            variant="outlined"
+            label="Public URL"
+            value={albumProvider.publicUrl}
+            disabled={!albumEnabled || undefined}
+            placeholder="https://cdn.example.com"
+            onInput={(e: any) => setAlbumProvider({ ...albumProvider, publicUrl: e.target.value })}
+          />
+          <mdui-text-field
+            variant="outlined"
+            label="S3 Access Key"
+            value={s3AccessKey}
+            disabled={!albumEnabled || undefined}
+            type="password"
+            toggle-password
+            onInput={(e: any) => setS3AccessKey(e.target.value)}
+          />
+          <mdui-text-field
+            variant="outlined"
+            label="S3 Secret Key"
+            value={s3SecretKey}
+            disabled={!albumEnabled || undefined}
+            type="password"
+            toggle-password
+            onInput={(e: any) => setS3SecretKey(e.target.value)}
+          />
+        </div>
       </section>
+
+      <mdui-divider />
 
       {/* 软件设置 */}
       <section>
@@ -387,9 +519,18 @@ export function Settings({ blogDir }: Props) {
               </mdui-button>
             </div>
             <mdui-divider />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">@s-blog/core</p>
+                <p className="text-sm text-gray-500">{shellVersion ?? "未缓存"}</p>
+              </div>
+              <mdui-button variant="tonal" loading={updating || undefined} onClick={handleUpdateShell}>
+                检查更新
+              </mdui-button>
+            </div>
             <div>
-              <p className="font-medium">版本</p>
-              <p className="text-sm text-gray-500">s-writor v0.2.0</p>
+              <p className="font-medium">s-blog-engine</p>
+              <p className="text-sm text-gray-500">{engineVersion}</p>
             </div>
           </div>
         </mdui-card>

@@ -34,9 +34,31 @@ mdui-layout-main {
 .post-list-item:hover {
   background-color: var(--mdui-color-surface-container);
 }
+.post-list-item mdui-button-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+}
+
+.create-dialog {
+  min-width: 420px;
+}
+.create-dialog::part(panel) {
+  min-width: 420px;
+}
 
 /* 限制 mdui-select 下拉菜单高度，超出滚动 */
 mdui-select::part(menu) {
   max-height: 280px;
   overflow-y: auto;
+}
+
+/* macOS WebKit: backdrop-blur + CSS variable bg can be transparent on first paint.
+   Add an opaque fallback that only applies on WebKit (Safari/Mac WebView). */
+@supports (-webkit-appearance: none) and (not (overflow: overlay)) {
+  .settings-header {
+    background-color: #fef7ff; /* surface color fallback */
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
 }

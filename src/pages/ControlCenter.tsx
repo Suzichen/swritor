@@ -21,7 +21,7 @@ export function ControlCenter({ blogDir }: Props) {
   const [serveLoading, setServeLoading] = useState(false);
 
   // ── Build state ──
-  const [buildState, setBuildState] = useState<"idle" | "building" | "success" | "error">("idle");
+  const [buildState, setBuildState] = useState<"idle" | "building" | "cancelling" | "success" | "error">("idle");
   const [buildLogs, setBuildLogs] = useState<string[]>([]);
   const [buildResult, setBuildResult] = useState<BuildResult | null>(null);
   const [buildError, setBuildError] = useState("");
@@ -29,7 +29,7 @@ export function ControlCenter({ blogDir }: Props) {
 
   // ── Sync state ──
   const [syncAvailable, setSyncAvailable] = useState(false);
-  const [syncState, setSyncState] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "cancelling" | "success" | "error">("idle");
   const [syncProgress, setSyncProgress] = useState("");
   const [syncPercent, setSyncPercent] = useState(0);
   const [syncResult, setSyncResult] = useState("");
@@ -78,7 +78,35 @@ export function ControlCenter({ blogDir }: Props) {
     if (buildDialogRef.current) buildDialogRef.current.open = true;
 
     const unlisten: UnlistenFn = await listen<string>("build-progress", (e) => {
-      setBuildLogs((prev) => [...prev, e.payload]);
+      try {
+        const data = JSON.parse(e.payload);
+        switch (data.type) {
+          case "step_start":
+            setBuildLogs((prev) => [...prev, `${data.step}...`]);
+            break;
+          case "step_done":
+            setBuildLogs((prev) => [...prev, `${data.step} ✓ ${data.detail}`]);
+            break;
+          case "albums_start":
+            setBuildLogs((prev) => [...prev, `[albums] Processing ${data.count} albums...`]);
+            break;
+          case "photo_progress":
+            setBuildLogs((prev) => {
+              const msg = `[albums] ${data.album} (${data.current}/${data.total})`;
+              // Replace last photo_progress line for same album to avoid flooding
+              if (prev.length > 0 && prev[prev.length - 1].startsWith(`[albums] ${data.album} (`)) {
+                return [...prev.slice(0, -1), msg];
+              }
+              return [...prev, msg];
+            });
+            break;
+          case "photo_album_done":
+            setBuildLogs((prev) => [...prev, `[albums] ${data.album} ✓ ${data.count} photos (${data.durationMs}ms)`]);
+            break;
+        }
+      } catch {
+        setBuildLogs((prev) => [...prev, e.payload]);
+      }
     });
 
     try {
@@ -92,6 +120,11 @@ export function ControlCenter({ blogDir }: Props) {
     }
     unlisten();
   }, [blogDir]);
+
+  const handleCancelBuild = () => {
+    setBuildState("cancelling");
+    invoke("cancel_build");
+  };
 
   const handleOpenDist = () => {
     invoke("open_in_explorer", { path: `${blogDir}\\dist` });
@@ -145,6 +178,11 @@ export function ControlCenter({ blogDir }: Props) {
     }
     unlisten();
   }, [blogDir]);
+
+  const handleCancelSync = () => {
+    setSyncState("cancelling");
+    invoke("cancel_sync");
+  };
 
   return (
     <div className="p-6 max-w-2xl">
@@ -209,12 +247,13 @@ export function ControlCenter({ blogDir }: Props) {
       </mdui-card>
 
       {/* ── Build Dialog ── */}
-      <mdui-dialog ref={buildDialogRef} close-on-overlay-click={buildState !== "building" || undefined}>
+      <mdui-dialog ref={buildDialogRef} close-on-overlay-click={buildState !== "building" && buildState !== "cancelling" || undefined}>
         <span slot="headline">生成网站</span>
         <div slot="description" style={{ minHeight: 120 }}>
-          {buildState === "building" && (
+          {(buildState === "building" || buildState === "cancelling") && (
             <>
               <mdui-linear-progress></mdui-linear-progress>
+              {buildState === "cancelling" && <p className="mt-2 text-sm" style={{ color: "#ea580c" }}>正在等待当前操作完成后取消...</p>}
               <div className="mt-3 text-sm max-h-48 overflow-y-auto" style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: 12 }}>
                 {buildLogs.map((l, i) => (
                   <p key={i} className="mb-1">{l}</p>
@@ -236,7 +275,12 @@ export function ControlCenter({ blogDir }: Props) {
           )}
         </div>
         <div slot="action">
-          {buildState !== "building" && (
+          {(buildState === "building" || buildState === "cancelling") && (
+            <mdui-button variant="text" onClick={handleCancelBuild} loading={buildState === "cancelling" || undefined} disabled={buildState === "cancelling" || undefined}>
+              {buildState === "cancelling" ? "正在取消..." : "取消"}
+            </mdui-button>
+          )}
+          {buildState !== "building" && buildState !== "cancelling" && (
             <>
               {buildState === "success" && (
                 <mdui-button variant="text" onClick={handleOpenDist}>
@@ -252,16 +296,17 @@ export function ControlCenter({ blogDir }: Props) {
       </mdui-dialog>
 
       {/* ── Sync Dialog ── */}
-      <mdui-dialog ref={syncDialogRef} close-on-overlay-click={syncState !== "syncing" || undefined}>
+      <mdui-dialog ref={syncDialogRef} close-on-overlay-click={syncState !== "syncing" && syncState !== "cancelling" || undefined}>
         <span slot="headline">媒体同步</span>
         <div slot="description" style={{ minHeight: 80 }}>
-          {syncState === "syncing" && (
+          {(syncState === "syncing" || syncState === "cancelling") && (
             <>
               {syncPercent < 0 ? (
                 <mdui-linear-progress></mdui-linear-progress>
               ) : (
                 <mdui-linear-progress value={syncPercent} max={100}></mdui-linear-progress>
               )}
+              {syncState === "cancelling" && <p className="mt-2 text-sm" style={{ color: "#ea580c" }}>正在等待当前操作完成后取消...</p>}
               <p className="mt-3 text-sm">{syncProgress}</p>
             </>
           )}
@@ -273,7 +318,12 @@ export function ControlCenter({ blogDir }: Props) {
           )}
         </div>
         <div slot="action">
-          {syncState !== "syncing" && (
+          {(syncState === "syncing" || syncState === "cancelling") && (
+            <mdui-button variant="text" onClick={handleCancelSync} loading={syncState === "cancelling" || undefined} disabled={syncState === "cancelling" || undefined}>
+              {syncState === "cancelling" ? "正在取消..." : "取消"}
+            </mdui-button>
+          )}
+          {syncState !== "syncing" && syncState !== "cancelling" && (
             <mdui-button variant="text" onClick={() => { if (syncDialogRef.current) syncDialogRef.current.open = false; setSyncState("idle"); }}>
               关闭
             </mdui-button>

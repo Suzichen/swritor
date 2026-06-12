@@ -36,9 +36,17 @@ pub fn run() {
             stop_serve,
             get_serve_status,
             build_blog,
+            cancel_build,
             sync_media,
+            cancel_sync,
             check_sync_available,
             get_task_status,
+            open_url,
+            get_shell_version,
+            get_engine_version,
+            update_shell_cache,
+            read_env,
+            write_env,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

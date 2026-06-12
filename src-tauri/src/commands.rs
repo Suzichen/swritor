@@ -488,6 +488,7 @@ pub async fn start_serve(
     state: State<'_, AppState>,
     blog_dir: String,
     port: Option<u16>,
+    open_browser: Option<bool>,
 ) -> Result<String, String> {
     if let Some(mut h) = state.serve_handle.lock().unwrap().take() {
         h.shutdown();
@@ -511,19 +512,21 @@ pub async fn start_serve(
     let addr = format!("http://127.0.0.1:{}", handle.address().port());
     *state.serve_handle.lock().unwrap() = Some(handle);
 
-    #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("cmd")
-            .args(["/c", "start", "", &addr])
-            .spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open").arg(&addr).spawn();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xdg-open").arg(&addr).spawn();
+    if open_browser.unwrap_or(true) {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("cmd")
+                .args(["/c", "start", "", &addr])
+                .spawn();
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open").arg(&addr).spawn();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let _ = std::process::Command::new("xdg-open").arg(&addr).spawn();
+        }
     }
 
     Ok(addr)
@@ -582,24 +585,72 @@ impl Drop for RunningGuard<'_> {
 
 #[tauri::command]
 pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+    use s_blog_engine::build::BuildOptions;
+    use s_blog_engine::progress::{BuildContext, BuildProgressEvent};
+
     let _guard = RunningGuard::acquire(&state.build_running)?;
+    state.build_cancel.store(false, Ordering::SeqCst);
 
     let shell_dir = crate::shell_fetcher::ensure_shell_cache(&app).await?;
-    let _ = app.emit("build-progress", "正在生成博客，请稍候...");
+    let cancel_token = state.build_cancel.clone();
+    let app_clone = app.clone();
 
     let result = tokio::task::spawn_blocking(move || {
-        let opts = s_blog_engine::build::BuildOptions {
+        // Read S3 credentials from .env if present (for provider/CI mode)
+        let env_path = std::path::Path::new(&blog_dir).join(".env");
+        let credentials = if env_path.is_file() {
+            let mut access_key = None;
+            let mut secret_key = None;
+            if let Ok(iter) = dotenvy::from_path_iter(&env_path) {
+                for item in iter.flatten() {
+                    match item.0.as_str() {
+                        "S3_ACCESS_KEY" => access_key = Some(item.1),
+                        "S3_SECRET_KEY" => secret_key = Some(item.1),
+                        _ => {}
+                    }
+                }
+            }
+            match (access_key, secret_key) {
+                (Some(ak), Some(sk)) => Some(s_blog_engine::media_sync::S3Credentials { access_key: ak, secret_key: sk }),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        let ctx = BuildContext {
+            on_progress: Some(Box::new(move |evt: BuildProgressEvent| {
+                let json = match &evt {
+                    BuildProgressEvent::StepStart { step } => format!(r#"{{"type":"step_start","step":"{step}"}}"#),
+                    BuildProgressEvent::StepDone { step, detail } => format!(r#"{{"type":"step_done","step":"{step}","detail":"{detail}"}}"#),
+                    BuildProgressEvent::AlbumsStart { count } => format!(r#"{{"type":"albums_start","count":{count}}}"#),
+                    BuildProgressEvent::PhotoProgress { album, current, total } => format!(r#"{{"type":"photo_progress","album":"{album}","current":{current},"total":{total}}}"#),
+                    BuildProgressEvent::PhotoAlbumDone { album, count, duration_ms } => format!(r#"{{"type":"photo_album_done","album":"{album}","count":{count},"durationMs":{duration_ms}}}"#),
+                };
+                let _ = app_clone.emit("build-progress", json);
+            })),
+            cancelled: Some(cancel_token),
+            credentials,
+        };
+        let opts = BuildOptions {
             work_dir: blog_dir.into(),
             output_dir: "dist".into(),
             shell_dir,
         };
-        s_blog_engine::build::build(opts)
+        s_blog_engine::build::build_with_context(opts, Some(ctx))
     })
     .await
     .map_err(|e| format!("任务执行失败: {e}"))?
     .map_err(|e| e.to_string())?;
 
     serde_json::to_string(&result).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn cancel_build(state: State<'_, AppState>) -> Result<(), String> {
+    state.build_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
 }
 
 #[tauri::command]
@@ -620,44 +671,38 @@ pub async fn check_sync_available(blog_dir: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
-    use s_blog_engine::media_sync::{SyncConfig, SyncContext, SyncProgress};
+    use std::sync::atomic::Ordering;
+    use s_blog_engine::media_sync::{S3Credentials, SyncConfig, SyncContext, SyncProgress};
 
     let _guard = RunningGuard::acquire(&state.sync_running)?;
+    state.sync_cancel.store(false, Ordering::SeqCst);
 
     let app_clone = app.clone();
+    let cancel_token = state.sync_cancel.clone();
     let _ = app.emit("sync-progress", r#"{"type":"scanning","total":0}"#);
 
     let result = tokio::task::spawn_blocking(move || {
-        // SAFETY: engine 内部通过 std::env::var 读取 S3 凭证，目前无法传入显式参数。
-        // set_var 在 Rust 2024 中为 unsafe（进程级全局状态），此处通过 RunningGuard
-        // 保证同一时刻只有一个 sync 任务修改这些变量。
-        // TODO: 待 engine 支持 Credentials 参数后移除。
-        struct EnvGuard(Vec<String>);
-        impl Drop for EnvGuard {
-            fn drop(&mut self) {
-                for k in &self.0 {
-                    std::env::remove_var(k);
+        // Read credentials from .env file explicitly (no env var mutation)
+        let env_path = Path::new(&blog_dir).join(".env");
+        let credentials = if env_path.is_file() {
+            let mut access_key = None;
+            let mut secret_key = None;
+            if let Ok(iter) = dotenvy::from_path_iter(&env_path) {
+                for item in iter.flatten() {
+                    match item.0.as_str() {
+                        "S3_ACCESS_KEY" => access_key = Some(item.1),
+                        "S3_SECRET_KEY" => secret_key = Some(item.1),
+                        _ => {}
+                    }
                 }
             }
-        }
-
-        let env_path = Path::new(&blog_dir).join(".env");
-        let keys: Vec<String> = if env_path.is_file() {
-            dotenvy::from_path_iter(&env_path)
-                .ok()
-                .map(|iter| {
-                    iter.filter_map(|r| r.ok())
-                        .map(|(k, v)| {
-                            std::env::set_var(&k, &v);
-                            k
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+            match (access_key, secret_key) {
+                (Some(ak), Some(sk)) => Some(S3Credentials { access_key: ak, secret_key: sk }),
+                _ => None,
+            }
         } else {
-            vec![]
+            None
         };
-        let _env_guard = EnvGuard(keys);
 
         let config = SyncConfig {
             work_dir: blog_dir.into(),
@@ -666,30 +711,152 @@ pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: St
         let ctx = SyncContext {
             on_progress: Some(Box::new(move |evt: SyncProgress| {
                 let json = match &evt {
-                    SyncProgress::Scanning { total } => {
-                        format!(r#"{{"type":"scanning","total":{total}}}"#)
-                    }
-                    SyncProgress::Uploading { current, total, file } => {
-                        format!(r#"{{"type":"uploading","current":{current},"total":{total},"file":"{file}"}}"#)
-                    }
-                    SyncProgress::GeneratingThumbnail { current, total, file } => {
-                        format!(r#"{{"type":"generating_thumbnail","current":{current},"total":{total},"file":"{file}"}}"#)
-                    }
-                    SyncProgress::UploadingThumbnail { current, total } => {
-                        format!(r#"{{"type":"uploading_thumbnail","current":{current},"total":{total}}}"#)
-                    }
+                    SyncProgress::Scanning { total } => format!(r#"{{"type":"scanning","total":{total}}}"#),
+                    SyncProgress::Uploading { current, total, file } => format!(r#"{{"type":"uploading","current":{current},"total":{total},"file":"{file}"}}"#),
+                    SyncProgress::GeneratingThumbnail { current, total, file } => format!(r#"{{"type":"generating_thumbnail","current":{current},"total":{total},"file":"{file}"}}"#),
+                    SyncProgress::UploadingThumbnail { current, total } => format!(r#"{{"type":"uploading_thumbnail","current":{current},"total":{total}}}"#),
                     SyncProgress::Done => r#"{"type":"done"}"#.to_string(),
                 };
                 let _ = app_clone.emit("sync-progress", json);
             })),
+            credentials,
+            cancelled: Some(cancel_token),
         };
-        let result = s_blog_engine::media_sync::sync_media_with_context(config, Some(ctx));
-
-        result
+        s_blog_engine::media_sync::sync_media_with_context(config, Some(ctx))
     })
     .await
     .map_err(|e| format!("任务执行失败: {e}"))?
     .map_err(|e| e.to_string())?;
 
     serde_json::to_string(&result).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn cancel_sync(state: State<'_, AppState>) -> Result<(), String> {
+    state.sync_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+// ── 工具命令 ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("无法打开浏览器: {e}"))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("无法打开浏览器: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("无法打开浏览器: {e}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_shell_version(app: AppHandle) -> Result<Option<String>, String> {
+    let base_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {e}"))?
+        .join("shell-cache");
+    if let Ok(entries) = std::fs::read_dir(&base_dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() && p.join("index.html").exists() {
+                if let Some(name) = p.file_name() {
+                    return Ok(Some(name.to_string_lossy().to_string()));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn get_engine_version() -> Result<String, String> {
+    Ok(env!("S_BLOG_ENGINE_VERSION").to_string())
+}
+
+#[tauri::command]
+pub async fn update_shell_cache(app: AppHandle) -> Result<String, String> {
+    // 清除旧缓存
+    let base_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {e}"))?
+        .join("shell-cache");
+    let _ = std::fs::remove_dir_all(&base_dir);
+    // 重新下载
+    let cache_dir = crate::shell_fetcher::ensure_shell_cache(&app).await?;
+    let version = cache_dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    Ok(version)
+}
+
+// ── .env 读写 ─────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn read_env(blog_dir: String) -> Result<EnvData, String> {
+    let env_path = Path::new(&blog_dir).join(".env");
+    if !env_path.is_file() {
+        return Ok(EnvData { s3_access_key: None, s3_secret_key: None });
+    }
+    let mut access_key = None;
+    let mut secret_key = None;
+    if let Ok(iter) = dotenvy::from_path_iter(&env_path) {
+        for item in iter.flatten() {
+            match item.0.as_str() {
+                "S3_ACCESS_KEY" => access_key = Some(item.1),
+                "S3_SECRET_KEY" => secret_key = Some(item.1),
+                _ => {}
+            }
+        }
+    }
+    Ok(EnvData { s3_access_key: access_key, s3_secret_key: secret_key })
+}
+
+#[tauri::command]
+pub async fn write_env(blog_dir: String, s3_access_key: String, s3_secret_key: String) -> Result<(), String> {
+    let env_path = Path::new(&blog_dir).join(".env");
+    let mut lines: Vec<String> = if env_path.is_file() {
+        fs::read_to_string(&env_path)
+            .unwrap_or_default()
+            .lines()
+            .map(|l| l.to_string())
+            .collect()
+    } else {
+        vec![]
+    };
+
+    let mut found_ak = false;
+    let mut found_sk = false;
+    for line in lines.iter_mut() {
+        let key = line.split('=').next().unwrap_or("").trim();
+        if key == "S3_ACCESS_KEY" {
+            *line = format!("S3_ACCESS_KEY={s3_access_key}");
+            found_ak = true;
+        } else if key == "S3_SECRET_KEY" {
+            *line = format!("S3_SECRET_KEY={s3_secret_key}");
+            found_sk = true;
+        }
+    }
+    if !found_ak { lines.push(format!("S3_ACCESS_KEY={s3_access_key}")); }
+    if !found_sk { lines.push(format!("S3_SECRET_KEY={s3_secret_key}")); }
+
+    fs::write(&env_path, lines.join("\n")).map_err(|e| e.to_string())
 }

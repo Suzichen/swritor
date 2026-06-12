@@ -34,6 +34,16 @@ export function PostEditor({ blogDir, filename, onBack }: Props) {
     setSaving(true);
     await invoke("save_post", { blogDir, filename, content: raw });
     setSaving(false);
+    onBack();
+  };
+
+  const handlePreview = async () => {
+    const slug = filename.replace(/\.md$/, "");
+    let addr = await invoke<string | null>("get_serve_status");
+    if (!addr) {
+      addr = await invoke<string>("start_serve", { blogDir, openBrowser: false });
+    }
+    await invoke("open_url", { url: `${addr}/post/${slug}` });
   };
 
   if (!post) {
@@ -50,6 +60,7 @@ export function PostEditor({ blogDir, filename, onBack }: Props) {
         <mdui-button-icon icon="arrow_back" onClick={onBack}></mdui-button-icon>
         <mdui-top-app-bar-title>{post.title}</mdui-top-app-bar-title>
         <div style={{ flexGrow: 1 }}></div>
+        <mdui-button-icon icon="visibility" onClick={handlePreview}></mdui-button-icon>
         <mdui-button variant="filled" loading={saving || undefined} onClick={handleSave}>
           保存
         </mdui-button>

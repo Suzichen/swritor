@@ -64,3 +64,10 @@ pub struct AlbumInfo {
 pub struct SiteConfig {
     pub raw: String,
 }
+
+/// .env 文件中的 S3 密钥
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnvData {
+    pub s3_access_key: Option<String>,
+    pub s3_secret_key: Option<String>,
+}
