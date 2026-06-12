@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { PostList } from "./pages/PostList";
 import { PostEditor } from "./pages/PostEditor";
 import { Albums } from "./pages/Albums";
 import { Settings } from "./pages/Settings";
 import { InitBlog } from "./pages/InitBlog";
+import { ControlCenter } from "./pages/ControlCenter";
 
-type Page = "posts" | "albums" | "settings";
+type Page = "control" | "posts" | "albums" | "settings";
 
 function App() {
-  const [page, setPage] = useState<Page>("posts");
+  const [page, setPage] = useState<Page>("control");
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [blogDir, setBlogDir] = useState<string>("");
   const [showInit, setShowInit] = useState(false);
@@ -33,7 +34,6 @@ function App() {
     setShowInit(false);
   };
 
-  // 无博客目录：显示选择/初始化入口
   if (!blogDir && !showInit) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -53,7 +53,6 @@ function App() {
     );
   }
 
-  // 初始化向导
   if (showInit) {
     return <InitBlog onComplete={handleInitComplete} onCancel={() => setShowInit(false)} />;
   }
@@ -78,6 +77,13 @@ function App() {
           </p>
         </div>
         <mdui-list>
+          <mdui-list-item
+            active={page === "control" ? true : undefined}
+            onClick={() => setPage("control")}
+            icon="dashboard"
+          >
+            控制中心
+          </mdui-list-item>
           <mdui-list-item
             active={page === "posts" ? true : undefined}
             onClick={() => setPage("posts")}
@@ -111,6 +117,7 @@ function App() {
       </mdui-navigation-drawer>
 
       <mdui-layout-main>
+        {page === "control" && <ControlCenter blogDir={blogDir} />}
         {page === "posts" && (
           <PostList blogDir={blogDir} onEdit={setEditingPost} />
         )}

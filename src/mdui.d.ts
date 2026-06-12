@@ -33,10 +33,10 @@ declare module "react" {
       "mdui-button-icon": MduiBase & { icon?: string };
       "mdui-icon": MduiBase & { name?: string };
       "mdui-card": MduiBase & { variant?: string };
-      "mdui-linear-progress": MduiBase;
+      "mdui-linear-progress": MduiBase & { value?: number; max?: number };
       "mdui-circular-progress": MduiBase;
       "mdui-divider": MduiBase;
-      "mdui-dialog": MduiBase & { open?: boolean; headline?: string };
+      "mdui-dialog": MduiBase & { open?: boolean; headline?: string; "close-on-overlay-click"?: boolean };
       "mdui-text-field": MduiBase & {
         variant?: string;
         label?: string;

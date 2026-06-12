@@ -1,11 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::error::AppError;
 use crate::models::*;
+use crate::state::AppState;
 
 // ── 目录相关 ──────────────────────────────────────────────
 
@@ -476,4 +477,219 @@ fn read_albums_dir(path: &Path) -> Result<FileNode, String> {
     }
     children.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     Ok(FileNode { name, path: path.display().to_string(), is_directory: true, children: Some(children) })
+}
+
+
+// ── 控制中心相关 ──────────────────────────────────────────
+
+#[tauri::command]
+pub async fn start_serve(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    blog_dir: String,
+    port: Option<u16>,
+) -> Result<String, String> {
+    if let Some(mut h) = state.serve_handle.lock().unwrap().take() {
+        h.shutdown();
+    }
+
+    let shell_dir = crate::shell_fetcher::ensure_shell_cache(&app).await?;
+
+    let config = s_blog_engine::serve::ServeConfig {
+        work_dir: blog_dir.into(),
+        shell_dir,
+        port: port.unwrap_or(3000),
+        ..Default::default()
+    };
+    let ctx = s_blog_engine::serve::ServeContext {
+        runtime: Some(tokio::runtime::Handle::current()),
+    };
+
+    let handle = s_blog_engine::serve::serve_with_context(config, Some(ctx))
+        .map_err(|e| e.to_string())?;
+
+    let addr = format!("http://127.0.0.1:{}", handle.address().port());
+    *state.serve_handle.lock().unwrap() = Some(handle);
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/c", "start", "", &addr])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(&addr).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(&addr).spawn();
+    }
+
+    Ok(addr)
+}
+
+#[tauri::command]
+pub async fn stop_serve(state: State<'_, AppState>) -> Result<(), String> {
+    if let Some(mut h) = state.serve_handle.lock().unwrap().take() {
+        h.shutdown();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_serve_status(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let mut guard = state.serve_handle.lock().unwrap();
+    if let Some(h) = guard.as_ref() {
+        let port = h.address().port();
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return Ok(Some(format!("http://127.0.0.1:{}", port)));
+        }
+        // 服务已死，清理 handle
+        if let Some(mut h) = guard.take() {
+            h.shutdown();
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn get_task_status(state: State<'_, AppState>) -> Result<(bool, bool), String> {
+    let building = *state.build_running.lock().unwrap();
+    let syncing = *state.sync_running.lock().unwrap();
+    Ok((building, syncing))
+}
+
+/// RAII guard that resets a bool flag to false on drop.
+struct RunningGuard<'a> {
+    flag: &'a std::sync::Mutex<bool>,
+}
+impl<'a> RunningGuard<'a> {
+    fn acquire(flag: &'a std::sync::Mutex<bool>) -> Result<Self, String> {
+        let mut running = flag.lock().unwrap();
+        if *running {
+            return Err("任务正在进行中".into());
+        }
+        *running = true;
+        Ok(Self { flag })
+    }
+}
+impl Drop for RunningGuard<'_> {
+    fn drop(&mut self) {
+        *self.flag.lock().unwrap() = false;
+    }
+}
+
+#[tauri::command]
+pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
+    let _guard = RunningGuard::acquire(&state.build_running)?;
+
+    let shell_dir = crate::shell_fetcher::ensure_shell_cache(&app).await?;
+    let _ = app.emit("build-progress", "正在生成博客，请稍候...");
+
+    let result = tokio::task::spawn_blocking(move || {
+        let opts = s_blog_engine::build::BuildOptions {
+            work_dir: blog_dir.into(),
+            output_dir: "dist".into(),
+            shell_dir,
+        };
+        s_blog_engine::build::build(opts)
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {e}"))?
+    .map_err(|e| e.to_string())?;
+
+    serde_json::to_string(&result).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn check_sync_available(blog_dir: String) -> Result<bool, String> {
+    let config_path = Path::new(&blog_dir).join("album.config.json");
+    if !config_path.is_file() {
+        return Ok(false);
+    }
+    let raw = fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
+    use std::io::Read;
+    let mut stripped = String::new();
+    json_comments::StripComments::new(raw.as_bytes())
+        .read_to_string(&mut stripped)
+        .map_err(|e| e.to_string())?;
+    let val: serde_json::Value = serde_json::from_str(&stripped).unwrap_or_default();
+    Ok(val.get("provider").map(|v| !v.is_null()).unwrap_or(false))
+}
+
+#[tauri::command]
+pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
+    use s_blog_engine::media_sync::{SyncConfig, SyncContext, SyncProgress};
+
+    let _guard = RunningGuard::acquire(&state.sync_running)?;
+
+    let app_clone = app.clone();
+    let _ = app.emit("sync-progress", r#"{"type":"scanning","total":0}"#);
+
+    let result = tokio::task::spawn_blocking(move || {
+        // SAFETY: engine 内部通过 std::env::var 读取 S3 凭证，目前无法传入显式参数。
+        // set_var 在 Rust 2024 中为 unsafe（进程级全局状态），此处通过 RunningGuard
+        // 保证同一时刻只有一个 sync 任务修改这些变量。
+        // TODO: 待 engine 支持 Credentials 参数后移除。
+        struct EnvGuard(Vec<String>);
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                for k in &self.0 {
+                    std::env::remove_var(k);
+                }
+            }
+        }
+
+        let env_path = Path::new(&blog_dir).join(".env");
+        let keys: Vec<String> = if env_path.is_file() {
+            dotenvy::from_path_iter(&env_path)
+                .ok()
+                .map(|iter| {
+                    iter.filter_map(|r| r.ok())
+                        .map(|(k, v)| {
+                            std::env::set_var(&k, &v);
+                            k
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            vec![]
+        };
+        let _env_guard = EnvGuard(keys);
+
+        let config = SyncConfig {
+            work_dir: blog_dir.into(),
+            ..Default::default()
+        };
+        let ctx = SyncContext {
+            on_progress: Some(Box::new(move |evt: SyncProgress| {
+                let json = match &evt {
+                    SyncProgress::Scanning { total } => {
+                        format!(r#"{{"type":"scanning","total":{total}}}"#)
+                    }
+                    SyncProgress::Uploading { current, total, file } => {
+                        format!(r#"{{"type":"uploading","current":{current},"total":{total},"file":"{file}"}}"#)
+                    }
+                    SyncProgress::GeneratingThumbnail { current, total, file } => {
+                        format!(r#"{{"type":"generating_thumbnail","current":{current},"total":{total},"file":"{file}"}}"#)
+                    }
+                    SyncProgress::UploadingThumbnail { current, total } => {
+                        format!(r#"{{"type":"uploading_thumbnail","current":{current},"total":{total}}}"#)
+                    }
+                    SyncProgress::Done => r#"{"type":"done"}"#.to_string(),
+                };
+                let _ = app_clone.emit("sync-progress", json);
+            })),
+        };
+        let result = s_blog_engine::media_sync::sync_media_with_context(config, Some(ctx));
+
+        result
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {e}"))?
+    .map_err(|e| e.to_string())?;
+
+    serde_json::to_string(&result).map_err(|e| e.to_string())
 }
