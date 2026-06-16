@@ -50,6 +50,7 @@ export function Settings({ blogDir }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMsg, setSnackMsg] = useState("保存成功");
 
   // Album settings
   const [albumEnabled, setAlbumEnabled] = useState(false);
@@ -60,9 +61,23 @@ export function Settings({ blogDir }: Props) {
   // Version
   const [shellVersion, setShellVersion] = useState<string | null>(null);
   const [engineVersion, setEngineVersion] = useState("");
+  const [cliVersion, setCliVersion] = useState("");
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => { loadConfig(); }, [blogDir]);
+
+  const handleCopyEnv = () => {
+    const info = [
+      `博客目录: ${blogDir}`,
+      `@s-blog/core: ${shellVersion ?? "未缓存"}`,
+      `s-blog-engine: ${engineVersion}`,
+      `CLI 版本: ${cliVersion}`,
+    ].join("\n");
+    navigator.clipboard.writeText(info);
+    setSnackMsg("已复制到剪贴板");
+    setSnackOpen(true);
+    setTimeout(() => setSnackOpen(false), 2000);
+  };
 
   const loadConfig = async () => {
     const { raw } = await invoke<{ raw: string }>("read_config", { blogDir, filename: "config.json" });
@@ -120,6 +135,8 @@ export function Settings({ blogDir }: Props) {
     setShellVersion(sv);
     const ev = await invoke<string>("get_engine_version");
     setEngineVersion(ev);
+    const cv = await invoke<string>("get_cli_version");
+    setCliVersion(cv);
   };
 
   const handleSave = async () => {
@@ -193,6 +210,7 @@ export function Settings({ blogDir }: Props) {
 
       setPendingLogo(null);
       setPendingFavicon(null);
+      setSnackMsg("保存成功");
       setSnackOpen(true);
       setTimeout(() => setSnackOpen(false), 2000);
     } finally {
@@ -205,8 +223,13 @@ export function Settings({ blogDir }: Props) {
     try {
       const newVersion = await invoke<string>("update_shell_cache");
       setShellVersion(newVersion);
-    } catch (e) {
-      console.error(e);
+      setSnackMsg(`已更新到 ${newVersion}`);
+      setSnackOpen(true);
+      setTimeout(() => setSnackOpen(false), 2000);
+    } catch (e: any) {
+      setSnackMsg(`更新失败: ${e}`);
+      setSnackOpen(true);
+      setTimeout(() => setSnackOpen(false), 3000);
     }
     setUpdating(false);
   };
@@ -506,7 +529,12 @@ export function Settings({ blogDir }: Props) {
 
       {/* 软件设置 */}
       <section>
-        <h2 className="text-xl font-medium mb-3">软件设置</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-medium mb-0">软件设置</h2>
+          <mdui-button variant="text" icon="content_copy" onClick={handleCopyEnv}>
+            复制环境信息
+          </mdui-button>
+        </div>
         <mdui-card class="p-4">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -524,7 +552,7 @@ export function Settings({ blogDir }: Props) {
                 <p className="font-medium">@s-blog/core</p>
                 <p className="text-sm text-gray-500">{shellVersion ?? "未缓存"}</p>
               </div>
-              <mdui-button variant="tonal" loading={updating || undefined} onClick={handleUpdateShell}>
+              <mdui-button variant="text" loading={updating || undefined} onClick={handleUpdateShell}>
                 检查更新
               </mdui-button>
             </div>
@@ -532,13 +560,17 @@ export function Settings({ blogDir }: Props) {
               <p className="font-medium">s-blog-engine</p>
               <p className="text-sm text-gray-500">{engineVersion}</p>
             </div>
+            <div>
+              <p className="font-medium">CLI 版本</p>
+              <p className="text-sm text-gray-500">{cliVersion}</p>
+            </div>
           </div>
         </mdui-card>
       </section>
 
       {/* Snackbar */}
       <mdui-snackbar open={snackOpen || undefined} placement="top">
-        保存成功
+        {snackMsg}
       </mdui-snackbar>
     </div>
   );

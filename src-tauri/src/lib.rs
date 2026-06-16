@@ -44,6 +44,7 @@ pub fn run() {
             open_url,
             get_shell_version,
             get_engine_version,
+            get_cli_version,
             update_shell_cache,
             read_env,
             write_env,

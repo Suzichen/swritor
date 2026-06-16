@@ -791,6 +791,11 @@ pub async fn get_engine_version() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn get_cli_version() -> Result<String, String> {
+    Ok(env!("S_BLOG_CLI_VERSION").to_string())
+}
+
+#[tauri::command]
 pub async fn update_shell_cache(app: AppHandle) -> Result<String, String> {
     // 清除旧缓存
     let base_dir = app

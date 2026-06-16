@@ -1,21 +1,28 @@
 fn main() {
-    // Extract s-blog-engine version from Cargo.lock
+    // Extract s-blog-engine and s-blog-scaffold versions from Cargo.lock
     println!("cargo:rerun-if-changed=Cargo.lock");
     let lock = std::fs::read_to_string("Cargo.lock").unwrap_or_default();
-    let mut version = "unknown";
-    let mut found_name = false;
+    
+    let mut engine_version = String::from("unknown");
+    let mut cli_version = String::from("unknown");
+    let mut current_name = String::new();
+
     for line in lock.lines() {
         let line = line.trim();
-        if line == r#"name = "s-blog-engine""# {
-            found_name = true;
-        } else if found_name && line.starts_with("version = ") {
-            version = line.trim_start_matches("version = ").trim_matches('"');
-            break;
-        } else if found_name && line.starts_with("[[") {
-            break;
+        if line.starts_with("name = ") {
+            current_name = line.trim_start_matches("name = ").trim_matches('"').to_string();
+        } else if line.starts_with("version = ") {
+            let v = line.trim_start_matches("version = ").trim_matches('"').to_string();
+            if current_name == "s-blog-engine" && engine_version == "unknown" {
+                engine_version = v;
+            } else if current_name == "s-blog-scaffold" && cli_version == "unknown" {
+                cli_version = v;
+            }
         }
     }
-    println!("cargo:rustc-env=S_BLOG_ENGINE_VERSION={version}");
+
+    println!("cargo:rustc-env=S_BLOG_ENGINE_VERSION={}", engine_version);
+    println!("cargo:rustc-env=S_BLOG_CLI_VERSION={}", cli_version);
 
     tauri_build::build()
 }
