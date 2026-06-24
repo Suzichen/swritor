@@ -61,7 +61,7 @@ export function Settings({ blogDir }: Props) {
   // Version
   const [shellVersion, setShellVersion] = useState<string | null>(null);
   const [engineVersion, setEngineVersion] = useState("");
-  const [cliVersion, setCliVersion] = useState("");
+  const [templateVersion, setTemplateVersion] = useState("");
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => { loadConfig(); }, [blogDir]);
@@ -71,7 +71,7 @@ export function Settings({ blogDir }: Props) {
       `博客目录: ${blogDir}`,
       `@s-blog/core: ${shellVersion ?? "未缓存"}`,
       `s-blog-engine: ${engineVersion}`,
-      `CLI 版本: ${cliVersion}`,
+      `模板版本: ${templateVersion}`,
     ].join("\n");
     navigator.clipboard.writeText(info);
     setSnackMsg("已复制到剪贴板");
@@ -135,8 +135,8 @@ export function Settings({ blogDir }: Props) {
     setShellVersion(sv);
     const ev = await invoke<string>("get_engine_version");
     setEngineVersion(ev);
-    const cv = await invoke<string>("get_cli_version");
-    setCliVersion(cv);
+    const cv = await invoke<string>("get_template_version");
+    setTemplateVersion(cv);
   };
 
   const handleSave = async () => {
@@ -561,8 +561,8 @@ export function Settings({ blogDir }: Props) {
               <p className="text-sm text-gray-500">{engineVersion}</p>
             </div>
             <div>
-              <p className="font-medium">CLI 版本</p>
-              <p className="text-sm text-gray-500">{cliVersion}</p>
+              <p className="font-medium">模板版本</p>
+              <p className="text-sm text-gray-500">{templateVersion}</p>
             </div>
           </div>
         </mdui-card>

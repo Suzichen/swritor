@@ -1,3 +1,0 @@
-warning: unused manifest key: dependencies.s-blog-scaffold.subdirectory
-    Checking s-writor v0.1.0 (C:\projects\personal\s-blog-admin\src-tauri)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.96s

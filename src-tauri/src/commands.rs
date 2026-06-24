@@ -226,34 +226,10 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
         return Err(AppError::DirectoryAlreadyExists(config.project_name.clone()).to_string());
     }
 
-    let _ = app.emit("log_output", "正在获取模板...");
-
-    // 尝试在线下载模板到临时目录
-    let temp_dir = std::env::temp_dir().join(format!("s-writor-template-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&temp_dir);
-    std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-
-    let template_dir = match crate::template_fetcher::fetch_template(&temp_dir).await {
-        Ok(_) => {
-            let _ = app.emit("log_output", "  ✓ 从 npm 获取最新模板成功");
-            temp_dir.display().to_string()
-        }
-        Err(e) => {
-            let _ = app.emit("log_output", &format!("  ⚠ 在线获取失败: {e}"));
-            let _ = app.emit("log_output", "  → 使用内嵌模板...");
-            let _ = std::fs::remove_dir_all(&temp_dir);
-            match get_fallback_template_dir(&app) {
-                Some(dir) => dir.display().to_string(),
-                None => return Err("无法获取模板：在线下载失败且无内嵌模板".to_string()),
-            }
-        }
-    };
-
     let _ = app.emit("log_output", "正在生成项目...");
 
     let input = s_blog_scaffold::ScaffoldInput {
         target_dir: project_path.display().to_string(),
-        template_dir,
         name: config.project_name.clone(),
         description: config.description,
         author: config.author,
@@ -274,9 +250,6 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
             return Err(format!("初始化失败: {e}"));
         }
     }
-
-    // 清理临时目录
-    let _ = std::fs::remove_dir_all(std::env::temp_dir().join(format!("s-writor-template-{}", std::process::id())));
 
     Ok(InitResult {
         success: true,
@@ -425,21 +398,7 @@ fn count_photos(path: &Path) -> usize {
         .unwrap_or(0)
 }
 
-fn get_fallback_template_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
-    if let Ok(res) = app.path().resource_dir() {
-        let p = res.join("resources").join("template");
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    let p = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join("template");
-    if p.exists() {
-        return Some(p);
-    }
-    None
-}
+
 
 fn read_flat_dir(path: &Path) -> Result<FileNode, String> {
     let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -791,8 +750,8 @@ pub async fn get_engine_version() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn get_cli_version() -> Result<String, String> {
-    Ok(env!("S_BLOG_CLI_VERSION").to_string())
+pub async fn get_template_version() -> Result<String, String> {
+    Ok(env!("S_BLOG_TEMPLATE_VERSION").to_string())
 }
 
 #[tauri::command]

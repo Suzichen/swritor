@@ -57,12 +57,13 @@ cd s-blog-management
 npm install
 ```
 
-### 3. （可选）同步模板到本地
+### 3. （可选）更新 Rust 依赖到最新版本
 
-应用运行时会在线拉取最新模板。如果需要离线开发或提前缓存：
+s-blog相关依赖 通过 git 依赖引入，Cargo.lock 会锁定 commit。如需拉取最新：
 
 ```bash
-npm run sync-template
+cd src-tauri
+cargo update
 ```
 
 ### 4. 开发模式运行
@@ -98,13 +99,10 @@ s-writor/
 │   │   ├── error.rs        # 错误类型
 │   │   ├── models.rs       # 数据模型
 │   │   └── lib.rs          # 入口
-│   ├── resources/          # 本地模板缓存（fallback，gitignored）
 │   ├── capabilities/       # 权限配置
 │   ├── icons/              # 应用图标
 │   ├── Cargo.toml          # Rust 依赖配置
 │   └── tauri.conf.json     # Tauri 配置
-├── scripts/                # 工具脚本
-│   └── sync-template.js    # 从 npm 同步模板到本地
 ├── package.json            # Node.js 依赖配置
 ├── vite.config.ts          # Vite 配置
 ├── tailwind.config.js      # Tailwind CSS 配置
@@ -119,16 +117,17 @@ s-writor/
 | `npm run build` | 构建前端代码 |
 | `npm run tauri dev` | 启动 Tauri 开发模式（完整应用） |
 | `npm run tauri build` | 构建生产版本安装包 |
-| `npm run sync-template` | 从 npm 同步最新项目模板到本地 |
 
 ## 架构说明
 
-### 模板获取策略
+### 模板策略
 
-初始化博客时，应用会：
+初始化博客时，`s-blog-scaffold` crate 使用编译时内嵌的模板文件。使用最新s-blog模板需更新 scaffold 依赖：
 
-1. **在线获取**（首选）：从 npm registry 下载最新 `create-s-blog` 包，提取模板文件
-2. **离线回退**：如果网络不可用，使用本地 `src-tauri/resources/template/` 中的缓存模板
+```bash
+cd src-tauri
+cargo update
+```
 
 ### s-blog crate 集成
 
@@ -137,28 +136,26 @@ s-writor/
 **当前已集成：**
 
 - `s-blog-scaffold` — 博客项目脚手架生成（目录结构、配置文件模板渲染）
-
-**计划集成：**
-
-- `s-blog-engine` — 完整博客构建管线（frontmatter 解析、相册处理、SEO / Sitemap / RSS 生成）
+- `s-blog-engine` — 博客构建管线（frontmatter 解析、相册处理、SEO / Sitemap / RSS 生成）
 
 开发时如需联调本地 s-blog 仓库，可在 `Cargo.toml` 末尾添加 `[patch]` 段：
 
 ```toml
 [patch."https://github.com/Suzichen/s-blog.git"]
 s-blog-scaffold = { path = "../s-blog/crates/s-blog-scaffold" }
-# s-blog-engine = { path = "../s-blog/crates/s-blog-engine" }
+s-blog-engine = { path = "../s-blog/crates/s-blog-engine" }
 ```
 
 ## TODO
 
 - [x] 初始化博客项目（在线拉取模板）
 - [x] 选择并浏览现有博客目录结构
-- [ ] 编辑配置（config.json / album.config.json 可视化编辑）
+- [x] 编辑配置（config.json / album.config.json 可视化编辑）
 - [ ] 编写文章（Markdown 编辑器，frontmatter 表单）
 - [ ] 管理相册（相册浏览、图片增删、封面设置）
-- [ ] 启动预览（调用 s-blog-engine serve 并在浏览器中查看效果）
-- [ ] 构建发布（一键 build，输出产物目录）
+- [x] 启动预览（调用 s-blog-engine serve 并在浏览器中查看效果）
+- [x] 构建（一键 build，输出产物目录）
+- [ ] 构建发布（一键构建并发布到对应平台）
 
 ## 使用说明
 

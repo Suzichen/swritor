@@ -3,7 +3,6 @@ pub mod error;
 pub mod models;
 pub mod shell_fetcher;
 pub mod state;
-pub mod template_fetcher;
 
 use tauri::{Manager, RunEvent};
 
@@ -44,7 +43,7 @@ pub fn run() {
             open_url,
             get_shell_version,
             get_engine_version,
-            get_cli_version,
+            get_template_version,
             update_shell_cache,
             read_env,
             write_env,
