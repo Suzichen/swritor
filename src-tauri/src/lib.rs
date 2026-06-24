@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod commands;
 pub mod error;
 pub mod models;
@@ -6,6 +7,7 @@ pub mod state;
 
 use tauri::{Manager, RunEvent};
 
+use auth::*;
 use commands::*;
 use state::AppState;
 
@@ -14,7 +16,12 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .manage(AppState::new())
+        .setup(|app| {
+            restore_auth_on_startup(&app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             select_directory,
             check_directory_exists,
@@ -47,6 +54,12 @@ pub fn run() {
             update_shell_cache,
             read_env,
             write_env,
+            auth_register,
+            auth_login,
+            auth_logout,
+            auth_get_status,
+            auth_request_verification,
+            auth_is_configured,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

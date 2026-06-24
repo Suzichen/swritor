@@ -19,6 +19,11 @@ mdui-navigation-drawer {
   --shape-corner: 0;
 }
 
+mdui-navigation-drawer::part(panel) {
+  display: flex;
+  flex-direction: column;
+}
+
 mdui-layout {
   height: 100vh;
 }

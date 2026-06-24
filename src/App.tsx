@@ -6,14 +6,27 @@ import { Albums } from "./pages/Albums";
 import { Settings } from "./pages/Settings";
 import { InitBlog } from "./pages/InitBlog";
 import { ControlCenter } from "./pages/ControlCenter";
+import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { LoginDialog } from "./components/auth/LoginDialog";
+import { RegisterDialog } from "./components/auth/RegisterDialog";
 
 type Page = "control" | "posts" | "albums" | "settings";
 
 function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
+  const { user, isLoggedIn, isConfigured, logout } = useAuth();
   const [page, setPage] = useState<Page>("control");
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [blogDir, setBlogDir] = useState<string>("");
   const [showInit, setShowInit] = useState(false);
+  const [authDialogMode, setAuthDialogMode] = useState<"login" | "register" | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("s-writor-dir");
@@ -113,6 +126,18 @@ function App() {
           <mdui-button variant="text" full-width onClick={selectBlogDir}>
             切换目录
           </mdui-button>
+          {isConfigured && (isLoggedIn ? (
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-gray-500 truncate">
+                {user?.siteSlug ? `${user.siteSlug}.pages.s-blog.me` : "已登录"}
+              </p>
+              <mdui-button-icon icon="logout" onClick={logout} />
+            </div>
+          ) : (
+            <mdui-button variant="text" icon="person" onClick={() => setAuthDialogMode("login")}>
+              登录
+            </mdui-button>
+          ))}
         </div>
       </mdui-navigation-drawer>
 
@@ -124,6 +149,17 @@ function App() {
         {page === "albums" && <Albums blogDir={blogDir} />}
         {page === "settings" && <Settings blogDir={blogDir} />}
       </mdui-layout-main>
+
+      <LoginDialog
+        open={authDialogMode === "login"}
+        onClose={() => setAuthDialogMode(null)}
+        onSwitchToRegister={() => setAuthDialogMode("register")}
+      />
+      <RegisterDialog
+        open={authDialogMode === "register"}
+        onClose={() => setAuthDialogMode(null)}
+        onSwitchToLogin={() => setAuthDialogMode("login")}
+      />
     </mdui-layout>
   );
 }

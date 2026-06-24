@@ -27,6 +27,8 @@ dotenvy = "0.15"
 json_comments = "0.2"
 s-blog-scaffold = { git = "https://github.com/Suzichen/s-blog.git", subdirectory = "crates/s-blog-scaffold" }
 s-blog-engine = { git = "https://github.com/Suzichen/s-blog.git", subdirectory = "crates/s-blog-engine" }
+tauri-plugin-store = "2"
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Console"] }
