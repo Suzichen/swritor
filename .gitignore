@@ -36,6 +36,7 @@ src-tauri/gen/schemas/
 .env
 .env.local
 .env.*.local
+src-tauri/.env
 
 # Template (synced from npm, run `npm run sync-template`)
 src-tauri/resources/template/

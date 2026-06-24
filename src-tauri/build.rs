@@ -1,36 +1,34 @@
 fn main() {
-    // Load .env for API URLs
+    // Env vars to embed at compile time.
+    // Priority: environment variable > .env file
+    const KEYS: &[&str] = &["PB_BASE_URL", "DEPLOY_API_BASE_URL"];
+
     println!("cargo:rerun-if-changed=.env");
-    if let Ok(content) = std::fs::read_to_string(".env") {
-        for line in content.lines() {
+
+    // Parse .env as fallback values
+    let env_file: Vec<(String, String)> = std::fs::read_to_string(".env")
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|line| {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
-                continue;
+                return None;
             }
-            if let Some((key, value)) = line.split_once('=') {
-                let key = key.trim();
-                let value = value.trim();
-                if key == "PB_BASE_URL" || key == "DEPLOY_API_BASE_URL" {
-                    println!("cargo:rustc-env={}={}", key, value);
-                }
-            }
-        }
-    }
+            let (k, v) = line.split_once('=')?;
+            Some((k.trim().to_string(), v.trim().to_string()))
+        })
+        .collect();
 
-    // Warn if not set via .env or environment
-    if std::env::var("PB_BASE_URL").is_err()
-        && std::fs::read_to_string(".env")
-            .map(|c| !c.contains("PB_BASE_URL"))
-            .unwrap_or(true)
-    {
-        println!("cargo:warning=PB_BASE_URL not set — auth features will be disabled");
-    }
-    if std::env::var("DEPLOY_API_BASE_URL").is_err()
-        && std::fs::read_to_string(".env")
-            .map(|c| !c.contains("DEPLOY_API_BASE_URL"))
-            .unwrap_or(true)
-    {
-        println!("cargo:warning=DEPLOY_API_BASE_URL not set — deploy features will be disabled");
+    for key in KEYS {
+        if let Ok(val) = std::env::var(key) {
+            // Use environment variable (CI sets these)
+            println!("cargo:rustc-env={}={}", key, val);
+        } else if let Some((_, val)) = env_file.iter().find(|(k, _)| k == key) {
+            // Fallback to .env file (local dev)
+            println!("cargo:rustc-env={}={}", key, val);
+        } else {
+            println!("cargo:warning={} not set", key);
+        }
     }
 
     // Extract s-blog-engine and s-blog-scaffold versions from Cargo.lock
