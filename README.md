@@ -1,6 +1,6 @@
 # s-writor
 
-基于 Tauri 框架的桌面博客管理应用程序，用于管理和初始化 S-Blog 博客项目。
+基于 Tauri 框架的 Material 风格桌面博客管理应用程序，用于管理和初始化 S-Blog 博客项目。
 
 ## 功能特性
 
@@ -26,7 +26,7 @@
 
 - **桌面框架**: Tauri 2.x（Rust 后端 + WebView 前端）
 - **前端**: React 18 + TypeScript + Vite
-- **样式**: Tailwind CSS
+- **样式**: MDUI + Tailwind CSS
 - **初始化引擎**: s-blog-scaffold（Rust crate，项目脚手架生成，依赖自s-blog）
 - **构建引擎**: s-blog-engine（Rust crate，博客构建和数据生成，依赖自s-blog）
 
