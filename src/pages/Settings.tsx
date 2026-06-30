@@ -8,6 +8,7 @@ import {
   SocialLinkItem,
 } from "../utils/configParser";
 import { COMMON_TIMEZONES, getTimezoneOffset } from "../utils/timezone";
+import { PersonalSettingsForm } from "../components/settings/PersonalSettingsForm";
 
 const BUILTIN_PLATFORMS = [
   "github", "rss", "x", "twitter", "weibo", "zhihu",
@@ -256,6 +257,22 @@ export function Settings({ blogDir }: Props) {
           保存
         </mdui-button>
       </div>
+
+      {/* 个人设置 */}
+      <section className="space-y-4">
+        <h2 className="text-xl font-medium">个人设置</h2>
+        <PersonalSettingsForm
+          blogDir={blogDir}
+          mode="settings"
+          onNotify={(msg) => {
+            setSnackMsg(msg);
+            setSnackOpen(true);
+            setTimeout(() => setSnackOpen(false), 2000);
+          }}
+        />
+      </section>
+
+      <mdui-divider />
 
       {/* 基本设置 */}
       <section className="space-y-4">

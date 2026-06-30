@@ -3,12 +3,14 @@ pub mod commands;
 pub mod error;
 pub mod models;
 pub mod shell_fetcher;
+pub mod sites;
 pub mod state;
 
 use tauri::{Manager, RunEvent};
 
 use auth::*;
 use commands::*;
+use sites::*;
 use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -60,6 +62,12 @@ pub fn run() {
             auth_get_status,
             auth_request_verification,
             auth_is_configured,
+            profile_update_name,
+            profile_update_avatar,
+            site_create,
+            hostname_provision,
+            hostname_status,
+            sites_list,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

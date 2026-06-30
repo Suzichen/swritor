@@ -23,7 +23,7 @@ export function LoginDialog({ open, onClose, onSwitchToRegister }: Props) {
     setLoading(true);
     try {
       await login(email, password);
-      // TODO Phase 4.2: if (!user.siteSlug) trigger site setup dialog
+      // First-time site setup dialog is triggered in App.tsx based on user.siteSlug.
       setEmail("");
       setPassword("");
       onClose();

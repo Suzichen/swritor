@@ -6,6 +6,23 @@ export interface UserInfo {
   email: string;
   verified: boolean;
   siteSlug: string | null;
+  name?: string | null;
+  avatar?: string | null;
+}
+
+/** Site record as returned by the Rust `site_create` / `sites_list` commands. */
+export interface SiteInfo {
+  siteSlug: string;
+  hostname: string;
+  siteStatus: string;
+  cfCustomHostnameId?: string | null;
+}
+
+/** Hostname status as returned by `hostname_provision` / `hostname_status`. */
+export interface HostnameStatus {
+  status: string;
+  sslStatus?: string | null;
+  validationErrors: string[];
 }
 
 interface AuthStatusResponse {
@@ -23,6 +40,14 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   requestVerification: (email: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
+  // Profile
+  updateName: (name: string) => Promise<void>;
+  updateAvatar: (filePath: string) => Promise<string>;
+  // Sites / hostname
+  createSite: (siteSlug: string) => Promise<SiteInfo>;
+  provisionHostname: (siteSlug: string) => Promise<HostnameStatus>;
+  getHostnameStatus: (siteSlug: string) => Promise<HostnameStatus>;
+  listSites: () => Promise<SiteInfo[]>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -71,6 +96,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await invoke<void>("auth_request_verification", { email });
   };
 
+  // ── Profile ──────────────────────────────────────────────
+
+  const updateName = async (name: string): Promise<void> => {
+    await invoke<void>("profile_update_name", { name });
+    await refreshStatus();
+  };
+
+  const updateAvatar = async (filePath: string): Promise<string> => {
+    const url = await invoke<string>("profile_update_avatar", { filePath });
+    await refreshStatus();
+    return url;
+  };
+
+  // ── Sites / hostname ─────────────────────────────────────
+
+  const createSite = async (siteSlug: string): Promise<SiteInfo> => {
+    const site = await invoke<SiteInfo>("site_create", { siteSlug });
+    await refreshStatus();
+    return site;
+  };
+
+  const provisionHostname = async (siteSlug: string): Promise<HostnameStatus> => {
+    return await invoke<HostnameStatus>("hostname_provision", { siteSlug });
+  };
+
+  const getHostnameStatus = async (siteSlug: string): Promise<HostnameStatus> => {
+    return await invoke<HostnameStatus>("hostname_status", { siteSlug });
+  };
+
+  const listSites = async (): Promise<SiteInfo[]> => {
+    return await invoke<SiteInfo[]>("sites_list");
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -83,6 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         requestVerification,
         refreshStatus,
+        updateName,
+        updateAvatar,
+        createSite,
+        provisionHostname,
+        getHostnameStatus,
+        listSites,
       }}
     >
       {children}

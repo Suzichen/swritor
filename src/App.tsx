@@ -9,8 +9,11 @@ import { ControlCenter } from "./pages/ControlCenter";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { LoginDialog } from "./components/auth/LoginDialog";
 import { RegisterDialog } from "./components/auth/RegisterDialog";
+import { FirstTimeSetupDialog } from "./components/settings/FirstTimeSetupDialog";
 
 type Page = "control" | "posts" | "albums" | "settings";
+
+const SKIP_SETUP_KEY = "s-writor-skip-site-setup";
 
 function App() {
   return (
@@ -27,11 +30,32 @@ function AppContent() {
   const [blogDir, setBlogDir] = useState<string>("");
   const [showInit, setShowInit] = useState(false);
   const [authDialogMode, setAuthDialogMode] = useState<"login" | "register" | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("s-writor-dir");
     if (saved) setBlogDir(saved);
   }, []);
+
+  // First-time setup dialog: show after login if the user has no site yet
+  // and hasn't permanently skipped it.
+  useEffect(() => {
+    if (
+      isLoggedIn &&
+      user &&
+      !user.siteSlug &&
+      !localStorage.getItem(SKIP_SETUP_KEY)
+    ) {
+      setShowSetup(true);
+    } else {
+      setShowSetup(false);
+    }
+  }, [isLoggedIn, user]);
+
+  const skipSetup = () => {
+    localStorage.setItem(SKIP_SETUP_KEY, "1");
+    setShowSetup(false);
+  };
 
   const selectBlogDir = async () => {
     const dir = await invoke<string | null>("select_directory");
@@ -159,6 +183,12 @@ function AppContent() {
         open={authDialogMode === "register"}
         onClose={() => setAuthDialogMode(null)}
         onSwitchToLogin={() => setAuthDialogMode("login")}
+      />
+      <FirstTimeSetupDialog
+        open={showSetup}
+        blogDir={blogDir}
+        onSkip={skipSetup}
+        onClose={() => setShowSetup(false)}
       />
     </mdui-layout>
   );
