@@ -184,7 +184,3 @@ spage-engine = { path = "../spage/crates/spage-engine" }
 1. 点击「选择现有博客」按钮
 2. 选择已有的博客项目目录
 3. 尽情地享受吧！
-
-## 许可证
-
-MIT
