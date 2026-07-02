@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capability for s-writor",
+  "description": "Default capability for swritor",
   "windows": ["main"],
   "permissions": [
     "core:default",

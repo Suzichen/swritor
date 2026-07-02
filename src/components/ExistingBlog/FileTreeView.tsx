@@ -1,5 +1,4 @@
-// S-Blog Admin - 文件树展示组件
-// 需求: 6.1, 6.2, 6.3, 6.4
+// Swritor - 文件树展示组件
 
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -80,9 +79,9 @@ export const FileTreeView: React.FC<FileTreeViewProps> = ({
    */
   const fetchFileTree = useCallback(async () => {
     if (!directoryPath || loading) return;
-    
+
     setLoading(true);
-    
+
     // 添加开始读取的日志
     setLogs([
       {

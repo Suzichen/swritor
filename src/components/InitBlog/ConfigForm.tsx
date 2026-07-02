@@ -1,5 +1,4 @@
-// S-Blog Admin - 配置表单组件
-// 需求: 3.1, 3.2, 3.3, 3.4
+// Swritor - 配置表单组件
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Input, Select } from '../common';
@@ -44,8 +43,8 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
   const systemTimezone = useMemo(() => getSystemTimezone(), []);
 
   // 表单状态
-  const [projectName, setProjectName] = useState(initialConfig?.projectName ?? 'my-blog');
-  const [description, setDescription] = useState(initialConfig?.description ?? 'A blog powered by S-blog');
+  const [projectName, setProjectName] = useState(initialConfig?.projectName ?? 'my-spage-blog');
+  const [description, setDescription] = useState(initialConfig?.description ?? 'A blog powered by Spage');
   const [author, setAuthor] = useState(initialConfig?.author ?? '');
   const [siteUrl, setSiteUrl] = useState(initialConfig?.siteUrl ?? '');
   const [timezone, setTimezone] = useState(initialConfig?.timezone ?? systemTimezone);
@@ -166,7 +165,7 @@ export const ConfigForm: React.FC<ConfigFormProps> = ({
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         onBlur={() => handleBlur('description')}
-        placeholder="A blog powered by S-blog"
+        placeholder="A blog powered by Spage"
         disabled={disabled}
       />
 

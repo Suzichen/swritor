@@ -1,5 +1,4 @@
-// S-Blog Admin - Tauri 命令调用 Hook
-// 需求: 4.2
+// Swritor - Tauri 命令调用 Hook
 
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';

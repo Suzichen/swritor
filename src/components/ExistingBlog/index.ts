@@ -1,4 +1,4 @@
-// S-Blog Admin - ExistingBlog 组件导出
+// Swritor - ExistingBlog 组件导出
 
 export { DirectorySelect } from './DirectorySelect';
 export type { DirectorySelectProps } from './DirectorySelect';

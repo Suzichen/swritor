@@ -349,7 +349,7 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
 
           <p className="flex items-center gap-1 text-xs text-gray-400">
             <mdui-icon name="info" style={{ fontSize: 14 }} />
-            申请后可一键部署到 s-blog。
+            申请后可一键部署到 spage.me。
           </p>
         </div>
       </div>

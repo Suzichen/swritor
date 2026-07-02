@@ -1,4 +1,4 @@
-// S-Blog Admin - InitBlog 组件导出
+// Swritor - InitBlog 组件导出
 
 export { DirectoryStep } from './DirectoryStep';
 export type { DirectoryStepProps } from './DirectoryStep';

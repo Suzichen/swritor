@@ -1,5 +1,4 @@
-// S-Blog Admin - TypeScript 类型定义
-// 需求: 3.2
+// Swritor - TypeScript 类型定义
 
 /** 博客配置 */
 export interface BlogConfig {

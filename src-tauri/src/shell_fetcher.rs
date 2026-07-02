@@ -1,4 +1,4 @@
-//! 从 npm registry 下载 @s-blog/core 包并缓存 dist/shell 目录
+//! 从 npm registry 下载 @s-page/core 包并缓存 dist/shell 目录
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -7,7 +7,7 @@ use flate2::read::GzDecoder;
 use tar::Archive;
 use tauri::Manager;
 
-const REGISTRY_URL: &str = "https://registry.npmjs.org/@s-blog/core/latest";
+const REGISTRY_URL: &str = "https://registry.npmjs.org/@s-page/core/latest";
 
 /// 确保 shell 缓存存在，返回 shell 目录路径
 pub async fn ensure_shell_cache(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -30,7 +30,7 @@ pub async fn ensure_shell_cache(app: &tauri::AppHandle) -> Result<PathBuf, Strin
     // 从 npm 获取包元数据
     let meta: serde_json::Value = reqwest::get(REGISTRY_URL)
         .await
-        .map_err(|e| format!("获取 @s-blog/core 包信息失败: {e}"))?
+        .map_err(|e| format!("获取 @s-page/core 包信息失败: {e}"))?
         .json()
         .await
         .map_err(|e| format!("解析包信息失败: {e}"))?;
@@ -49,7 +49,7 @@ pub async fn ensure_shell_cache(app: &tauri::AppHandle) -> Result<PathBuf, Strin
     // 下载 tarball
     let bytes = reqwest::get(tarball_url)
         .await
-        .map_err(|e| format!("下载 @s-blog/core 失败: {e}"))?
+        .map_err(|e| format!("下载 @s-page/core 失败: {e}"))?
         .bytes()
         .await
         .map_err(|e| format!("读取数据失败: {e}"))?;

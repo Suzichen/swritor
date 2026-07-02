@@ -1,5 +1,4 @@
-// S-Blog Admin - 目录选择组件（选择现有博客）
-// 需求: 5.1, 5.2, 5.3
+// Swritor - 目录选择组件（选择现有博客）
 
 import React, { useCallback } from 'react';
 import { Button } from '../common';

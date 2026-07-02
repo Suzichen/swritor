@@ -1,8 +1,8 @@
 [package]
-name = "s-writor"
-version = "0.2.0"
-description = "S-Writor - 创作•管理•分享"
-authors = ["S-Blog Team"]
+name = "swritor"
+version = "0.2.1"
+description = "Swritor - 创作•管理•分享"
+authors = ["Spage Team"]
 edition = "2021"
 
 [lib]
@@ -25,8 +25,8 @@ flate2 = "1"
 tar = "0.4"
 dotenvy = "0.15"
 json_comments = "0.2"
-s-blog-scaffold = { git = "https://github.com/Suzichen/s-blog.git", subdirectory = "crates/s-blog-scaffold" }
-s-blog-engine = { git = "https://github.com/Suzichen/s-blog.git", subdirectory = "crates/s-blog-engine" }
+spage-scaffold = { git = "https://github.com/Suzichen/spage.git", subdirectory = "crates/spage-scaffold" }
+spage-engine = { git = "https://github.com/Suzichen/spage.git", subdirectory = "crates/spage-engine" }
 tauri-plugin-store = "2"
 base64 = "0.22"
 

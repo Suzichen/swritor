@@ -1,5 +1,4 @@
-// S-Blog Admin - 日志流监听 Hook
-// 需求: 4.2 - WHILE 初始化过程执行中，THE Web_UI SHALL 显示进度指示器和实时日志输出
+// Swritor - 日志流监听 Hook
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';

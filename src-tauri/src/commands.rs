@@ -228,7 +228,7 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
 
     let _ = app.emit("log_output", "正在生成项目...");
 
-    let input = s_blog_scaffold::ScaffoldInput {
+    let input = spage_scaffold::ScaffoldInput {
         target_dir: project_path.display().to_string(),
         name: config.project_name.clone(),
         description: config.description,
@@ -237,7 +237,7 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
         timezone: if config.timezone.is_empty() { None } else { Some(config.timezone) },
     };
 
-    match s_blog_scaffold::scaffold(&input) {
+    match spage_scaffold::scaffold(&input) {
         Ok(_) => {
             let _ = app.emit("log_output", "  ✓ config.json");
             let _ = app.emit("log_output", "  ✓ album.config.json");
@@ -246,7 +246,7 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
             let _ = app.emit("log_output", "✓ 博客项目初始化完成");
         }
         Err(e) => {
-            s_blog_scaffold::cleanup(&project_path.display().to_string());
+            spage_scaffold::cleanup(&project_path.display().to_string());
             return Err(format!("初始化失败: {e}"));
         }
     }
@@ -455,17 +455,17 @@ pub async fn start_serve(
 
     let shell_dir = crate::shell_fetcher::ensure_shell_cache(&app).await?;
 
-    let config = s_blog_engine::serve::ServeConfig {
+    let config = spage_engine::serve::ServeConfig {
         work_dir: blog_dir.into(),
         shell_dir,
         port: port.unwrap_or(3000),
         ..Default::default()
     };
-    let ctx = s_blog_engine::serve::ServeContext {
+    let ctx = spage_engine::serve::ServeContext {
         runtime: Some(tokio::runtime::Handle::current()),
     };
 
-    let handle = s_blog_engine::serve::serve_with_context(config, Some(ctx))
+    let handle = spage_engine::serve::serve_with_context(config, Some(ctx))
         .map_err(|e| e.to_string())?;
 
     let addr = format!("http://127.0.0.1:{}", handle.address().port());
@@ -545,8 +545,8 @@ impl Drop for RunningGuard<'_> {
 #[tauri::command]
 pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
     use std::sync::atomic::Ordering;
-    use s_blog_engine::build::BuildOptions;
-    use s_blog_engine::progress::{BuildContext, BuildProgressEvent};
+    use spage_engine::build::BuildOptions;
+    use spage_engine::progress::{BuildContext, BuildProgressEvent};
 
     let _guard = RunningGuard::acquire(&state.build_running)?;
     state.build_cancel.store(false, Ordering::SeqCst);
@@ -571,7 +571,7 @@ pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: St
                 }
             }
             match (access_key, secret_key) {
-                (Some(ak), Some(sk)) => Some(s_blog_engine::media_sync::S3Credentials { access_key: ak, secret_key: sk }),
+                (Some(ak), Some(sk)) => Some(spage_engine::media_sync::S3Credentials { access_key: ak, secret_key: sk }),
                 _ => None,
             }
         } else {
@@ -597,7 +597,7 @@ pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: St
             output_dir: "dist".into(),
             shell_dir,
         };
-        s_blog_engine::build::build_with_context(opts, Some(ctx))
+        spage_engine::build::build_with_context(opts, Some(ctx))
     })
     .await
     .map_err(|e| format!("任务执行失败: {e}"))?
@@ -631,7 +631,7 @@ pub async fn check_sync_available(blog_dir: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
     use std::sync::atomic::Ordering;
-    use s_blog_engine::media_sync::{S3Credentials, SyncConfig, SyncContext, SyncProgress};
+    use spage_engine::media_sync::{S3Credentials, SyncConfig, SyncContext, SyncProgress};
 
     let _guard = RunningGuard::acquire(&state.sync_running)?;
     state.sync_cancel.store(false, Ordering::SeqCst);
@@ -681,7 +681,7 @@ pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: St
             credentials,
             cancelled: Some(cancel_token),
         };
-        s_blog_engine::media_sync::sync_media_with_context(config, Some(ctx))
+        spage_engine::media_sync::sync_media_with_context(config, Some(ctx))
     })
     .await
     .map_err(|e| format!("任务执行失败: {e}"))?
@@ -746,12 +746,12 @@ pub async fn get_shell_version(app: AppHandle) -> Result<Option<String>, String>
 
 #[tauri::command]
 pub async fn get_engine_version() -> Result<String, String> {
-    Ok(env!("S_BLOG_ENGINE_VERSION").to_string())
+    Ok(env!("SPAGE_ENGINE_VERSION").to_string())
 }
 
 #[tauri::command]
 pub async fn get_template_version() -> Result<String, String> {
-    Ok(env!("S_BLOG_TEMPLATE_VERSION").to_string())
+    Ok(env!("SPAGE_TEMPLATE_VERSION").to_string())
 }
 
 #[tauri::command]

@@ -1,5 +1,4 @@
-// S-Blog Admin - 目录选择步骤组件
-// 需求: 2.1, 2.2, 2.3, 2.4
+// Swritor - 目录选择步骤组件
 
 import React, { useState, useCallback } from 'react';
 import { Button } from '../common';

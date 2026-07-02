@@ -1,4 +1,4 @@
-// S-Blog Admin - 错误处理工具
+// Swritor - 错误处理工具
 
 export interface AppError {
   code: string;

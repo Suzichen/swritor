@@ -70,8 +70,8 @@ export function Settings({ blogDir }: Props) {
   const handleCopyEnv = () => {
     const info = [
       `博客目录: ${blogDir}`,
-      `@s-blog/core: ${shellVersion ?? "未缓存"}`,
-      `s-blog-engine: ${engineVersion}`,
+      `@s-page/core: ${shellVersion ?? "未缓存"}`,
+      `@s-page/engine: ${engineVersion}`,
       `模板版本: ${templateVersion}`,
     ].join("\n");
     navigator.clipboard.writeText(info);
@@ -566,7 +566,7 @@ export function Settings({ blogDir }: Props) {
             <mdui-divider />
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">@s-blog/core</p>
+                <p className="font-medium">@s-page/core</p>
                 <p className="text-sm text-gray-500">{shellVersion ?? "未缓存"}</p>
               </div>
               <mdui-button variant="text" loading={updating || undefined} onClick={handleUpdateShell}>
@@ -574,7 +574,7 @@ export function Settings({ blogDir }: Props) {
               </mdui-button>
             </div>
             <div>
-              <p className="font-medium">s-blog-engine</p>
+              <p className="font-medium">@s-page/engine</p>
               <p className="text-sm text-gray-500">{engineVersion}</p>
             </div>
             <div>

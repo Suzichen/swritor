@@ -1,5 +1,4 @@
-// S-Blog Admin - 进度和日志面板组件
-// 需求: 4.2, 4.3, 4.5
+// Swritor - 进度和日志面板组件
 
 import React from 'react';
 import { Button } from '../common';

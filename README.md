@@ -1,25 +1,25 @@
-# s-writor
+# Swritor
 
-基于 Tauri 框架的 Material 风格桌面博客管理应用程序，用于管理和初始化 S-Blog 博客项目。
+基于 Tauri 框架的 Material 风格桌面博客管理应用程序，用于管理和初始化 Spage 博客项目。
 
 ## 功能特性
 
-- 🚀 **初始化博客** - 通过图形化界面创建新的 S-Blog 博客项目
+- 🚀 **初始化博客** - 通过图形化界面创建新的 Spage 博客项目
 - 📂 **管理现有博客** - 选择并查看现有博客项目的文件结构
-- ⚡ **Rust 驱动** - 使用 [s-blog](https://github.com/Suzichen/s-blog) 系列 Rust crate（scaffold / engine），无需外部运行时
+- ⚡ **Rust 驱动** - 使用 [spage](https://github.com/Suzichen/spage) 系列 Rust crate（scaffold / engine），无需外部运行时
 - 🌐 **在线模板** - 初始化时自动从 npm registry 拉取最新项目模板
 - 🖥️ **跨平台支持** - 支持 Windows 和 macOS 平台
 
 
 ## 界面截图
 
-![初始界面](https://img.s-blog.me/s-writor/20260615/Snipaste_0.png "初始界面")
+![初始界面](https://img.spage.me/s-writor/20260615/Snipaste_0.png "初始界面")
 
-![初始界面2](https://img.s-blog.me/s-writor/20260615/Snipaste_7.png "初始界面2")
+![初始界面2](https://img.spage.me/s-writor/20260615/Snipaste_7.png "初始界面2")
 
-![文章管理](https://img.s-blog.me/s-writor/20260615/Snipaste_4.png "文章管理")
+![文章管理](https://img.spage.me/s-writor/20260615/Snipaste_4.png "文章管理")
 
-![设置界面](https://img.s-blog.me/s-writor/20260615/Snipaste_9.png "设置界面")
+![设置界面](https://img.spage.me/s-writor/20260615/Snipaste_9.png "设置界面")
 
 
 ## 技术栈
@@ -27,8 +27,8 @@
 - **桌面框架**: Tauri 2.x（Rust 后端 + WebView 前端）
 - **前端**: React 18 + TypeScript + Vite
 - **样式**: MDUI + Tailwind CSS
-- **初始化引擎**: s-blog-scaffold（Rust crate，项目脚手架生成，依赖自s-blog）
-- **构建引擎**: s-blog-engine（Rust crate，博客构建和数据生成，依赖自s-blog）
+- **初始化引擎**: spage-scaffold（Rust crate，项目脚手架生成，依赖自spage）
+- **构建引擎**: spage-engine（Rust crate，博客构建和数据生成，依赖自依赖自spage）
 
 ## 环境要求
 
@@ -59,8 +59,8 @@ npm install -g @tauri-apps/cli
 ### 1. 克隆项目
 
 ```bash
-git clone git@github.com:Suzichen/s-blog-management.git
-cd s-blog-management
+git clone git@github.com:Suzichen/swritor.git
+cd swritor
 ```
 
 ### 2. 安装依赖
@@ -71,7 +71,7 @@ npm install
 
 ### 3. （可选）更新 Rust 依赖到最新版本
 
-s-blog相关依赖 通过 git 依赖引入，Cargo.lock 会锁定 commit。如需拉取最新：
+spage 相关依赖 通过 git 依赖引入，Cargo.lock 会锁定 commit。如需拉取最新：
 
 ```bash
 cd src-tauri
@@ -95,7 +95,7 @@ npm run tauri build
 ## 项目结构
 
 ```
-s-writor/
+swritor/
 ├── src/                    # 前端源码
 │   ├── components/         # React 组件
 │   ├── hooks/              # 自定义 Hooks
@@ -134,28 +134,28 @@ s-writor/
 
 ### 模板策略
 
-初始化博客时，`s-blog-scaffold` crate 使用编译时内嵌的模板文件。使用最新s-blog模板需更新 scaffold 依赖：
+初始化博客时，`spage-scaffold` crate 使用编译时内嵌的模板文件。使用最新spage模板需更新 scaffold 依赖：
 
 ```bash
 cd src-tauri
 cargo update
 ```
 
-### s-blog crate 集成
+### spage crate 集成
 
-通过 Cargo git 依赖引入 [s-blog](https://github.com/Suzichen/s-blog) 仓库中的 crate：
+通过 Cargo git 依赖引入 [spage](https://github.com/Suzichen/spage) 仓库中的 crate：
 
 **当前已集成：**
 
-- `s-blog-scaffold` — 博客项目脚手架生成（目录结构、配置文件模板渲染）
-- `s-blog-engine` — 博客构建管线（frontmatter 解析、相册处理、SEO / Sitemap / RSS 生成）
+- `spage-scaffold` — 博客项目脚手架生成（目录结构、配置文件模板渲染）
+- `spage-engine` — 博客构建管线（frontmatter 解析、相册处理、SEO / Sitemap / RSS 生成）
 
-开发时如需联调本地 s-blog 仓库，可在 `Cargo.toml` 末尾添加 `[patch]` 段：
+开发时如需联调本地 spage 仓库，可在 `Cargo.toml` 末尾添加 `[patch]` 段：
 
 ```toml
-[patch."https://github.com/Suzichen/s-blog.git"]
-s-blog-scaffold = { path = "../s-blog/crates/s-blog-scaffold" }
-s-blog-engine = { path = "../s-blog/crates/s-blog-engine" }
+[patch."https://github.com/Suzichen/spage.git"]
+spage-scaffold = { path = "../spage/crates/spage-scaffold" }
+spage-engine = { path = "../spage/crates/spage-engine" }
 ```
 
 ## TODO
@@ -165,7 +165,7 @@ s-blog-engine = { path = "../s-blog/crates/s-blog-engine" }
 - [x] 编辑配置（config.json / album.config.json 可视化编辑）
 - [ ] 编写文章（Markdown 编辑器，frontmatter 表单）
 - [ ] 管理相册（相册浏览、图片增删、封面设置）
-- [x] 启动预览（调用 s-blog-engine serve 并在浏览器中查看效果）
+- [x] 启动预览（调用 spage-engine serve 并在浏览器中查看效果）
 - [x] 构建（一键 build，输出产物目录）
 - [ ] 构建发布（一键构建并发布到对应平台）
 

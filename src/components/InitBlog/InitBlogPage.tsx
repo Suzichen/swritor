@@ -1,5 +1,4 @@
-// S-Blog Admin - 初始化博客完整流程页面
-// 需求: 4.1, 4.4, 4.6
+// Swritor - 初始化博客完整流程页面
 
 import React, { useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';

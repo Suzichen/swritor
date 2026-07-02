@@ -13,7 +13,7 @@ import { FirstTimeSetupDialog } from "./components/settings/FirstTimeSetupDialog
 
 type Page = "control" | "posts" | "albums" | "settings";
 
-const SKIP_SETUP_KEY = "s-writor-skip-site-setup";
+const SKIP_SETUP_KEY = "swritor-skip-site-setup";
 
 function App() {
   return (
@@ -33,7 +33,7 @@ function AppContent() {
   const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("s-writor-dir");
+    const saved = localStorage.getItem("swritor-dir");
     if (saved) setBlogDir(saved);
   }, []);
 
@@ -61,13 +61,13 @@ function AppContent() {
     const dir = await invoke<string | null>("select_directory");
     if (dir) {
       setBlogDir(dir);
-      localStorage.setItem("s-writor-dir", dir);
+      localStorage.setItem("swritor-dir", dir);
     }
   };
 
   const handleInitComplete = (projectPath: string) => {
     setBlogDir(projectPath);
-    localStorage.setItem("s-writor-dir", projectPath);
+    localStorage.setItem("swritor-dir", projectPath);
     setShowInit(false);
   };
 
@@ -75,7 +75,7 @@ function AppContent() {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <mdui-card class="p-8 text-center" style={{ maxWidth: 420 }}>
-          <h2 className="text-2xl font-medium mb-2">s-writor</h2>
+          <h2 className="text-2xl font-medium mb-2">Swritor</h2>
           <p className="text-sm text-gray-600 mb-6">博客管理桌面应用程序</p>
           <div className="space-y-3">
             <mdui-button variant="filled" full-width onClick={selectBlogDir}>
@@ -108,7 +108,7 @@ function AppContent() {
     <mdui-layout>
       <mdui-navigation-drawer open contained>
         <div className="p-4 pb-2">
-          <h1 className="text-lg font-medium">s-writor</h1>
+          <h1 className="text-lg font-medium">Swritor</h1>
           <p className="text-xs text-gray-500 truncate" title={blogDir}>
             {blogDir.split(/[/\\]/).pop()}
           </p>

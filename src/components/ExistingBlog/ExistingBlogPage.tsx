@@ -1,5 +1,4 @@
-// S-Blog Admin - 选择现有博客页面
-// 需求: 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4
+// Swritor - 选择现有博客页面
 
 import React, { useState, useCallback } from 'react';
 import { Button } from '../common';

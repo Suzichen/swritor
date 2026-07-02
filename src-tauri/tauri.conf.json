@@ -1,6 +1,6 @@
 {
-  "productName": "s-writor",
-  "version": "0.2.0",
+  "productName": "Swritor",
+  "version": "0.2.1",
   "identifier": "com.swritor.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "s-writor",
+        "title": "Swritor",
         "width": 1024,
         "height": 768,
         "resizable": true,
