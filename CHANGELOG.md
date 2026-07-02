@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [v0.2.1] - 2026-07-02
+
+### Chore
+s-writor 现已改名为Swritor🎉
+更换原s-blog资源为spage
+
+### Added
+支持申请部署pages.s-blog.me子域名 (此为beta版本，后续将改为更加直观的spage.me)
+支持修改用户名和头像
+
 ## [v0.2.0] - 2026-06-25
 
 ### Added
