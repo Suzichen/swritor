@@ -65,8 +65,6 @@ pub fn run() {
             profile_update_name,
             profile_update_avatar,
             site_create,
-            hostname_provision,
-            hostname_status,
             sites_list,
         ])
         .build(tauri::generate_context!())

@@ -9,7 +9,7 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { useAuth, type SiteInfo } from "../../hooks/useAuth";
 import { parseConfig } from "../../utils/configParser";
 
-const PAGES_ROOT_DOMAIN = "pages.s-blog.me";
+const PAGES_ROOT_DOMAIN = "spage.me";
 const MAX_SITES = 2;
 
 export interface PersonalSettingsFormHandle {
@@ -29,22 +29,7 @@ interface Props {
   onNotify?: (msg: string) => void;
 }
 
-interface StatusVisual {
-  icon: string;
-  color: string;
-  text: string;
-}
 
-function statusVisual(status: string): StatusVisual {
-  switch (status) {
-    case "active":
-      return { icon: "check_circle", color: "#16a34a", text: "可以访问" };
-    case "failed":
-      return { icon: "error", color: "#dc2626", text: "错误，需人工处理" };
-    default:
-      return { icon: "hourglass_top", color: "#d97706", text: "配置中（SSL 部署中）" };
-  }
-}
 
 export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props>(
   function PersonalSettingsForm({ blogDir, mode, showProfileSaveButton, onSaved, onNotify }, ref) {
@@ -54,8 +39,6 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
       updateName,
       updateAvatar,
       createSite,
-      provisionHostname,
-      getHostnameStatus,
       listSites,
     } = useAuth();
 
@@ -73,7 +56,7 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
     const [slugInput, setSlugInput] = useState("");
     const [applying, setApplying] = useState(false);
     const [siteError, setSiteError] = useState("");
-    const [checkingSlug, setCheckingSlug] = useState<string | null>(null);
+
 
     const reloadSites = useCallback(async () => {
       if (!isLoggedIn) return;
@@ -161,13 +144,6 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
       setApplying(true);
       try {
         await createSite(slug);
-        // Immediately provision the custom hostname (申请证书)
-        try {
-          await provisionHostname(slug);
-        } catch (e: any) {
-          // Site was created; provisioning can be retried from the site row.
-          setSiteError(`站点已创建，但域名申请失败：${String(e)}`);
-        }
         setSlugInput("");
         await reloadSites();
         notify(`已申请站点 ${slug}.${PAGES_ROOT_DOMAIN}`);
@@ -179,39 +155,7 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
       }
     };
 
-    const checkStatus = async (slug: string) => {
-      setSiteError("");
-      setCheckingSlug(slug);
-      try {
-        const st = await getHostnameStatus(slug);
-        setSites((prev) =>
-          prev.map((s) => (s.siteSlug === slug ? { ...s, siteStatus: st.status } : s))
-        );
-        if (st.validationErrors.length > 0) {
-          setSiteError(`域名校验问题：${st.validationErrors.join("；")}`);
-        }
-      } catch (e: any) {
-        setSiteError(String(e));
-      } finally {
-        setCheckingSlug(null);
-      }
-    };
 
-    const reprovision = async (slug: string) => {
-      setSiteError("");
-      setCheckingSlug(slug);
-      try {
-        const st = await provisionHostname(slug);
-        setSites((prev) =>
-          prev.map((s) => (s.siteSlug === slug ? { ...s, siteStatus: st.status } : s))
-        );
-        notify("已重新申请域名");
-      } catch (e: any) {
-        setSiteError(String(e));
-      } finally {
-        setCheckingSlug(null);
-      }
-    };
 
     if (!isLoggedIn) {
       return <p className="text-sm text-gray-500">登录后可设置昵称、头像与博客网址。</p>;
@@ -275,46 +219,18 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
           <p className="text-sm font-medium text-gray-700">博客网址</p>
 
           {/* 已有站点列表 */}
-          {sites.map((site) => {
-            const vis = statusVisual(site.siteStatus);
-            const busy = checkingSlug === site.siteSlug;
-            return (
-              <div key={site.siteSlug} className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <mdui-text-field
-                    variant="outlined"
-                    label="博客网址"
-                    value={site.siteSlug}
-                    disabled
-                    class="flex-1"
-                  />
-                  <span className="text-sm text-gray-500 shrink-0">.{PAGES_ROOT_DOMAIN}</span>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="flex items-center gap-1 text-sm" style={{ color: vis.color }}>
-                    <mdui-icon name={vis.icon} style={{ fontSize: 18 }} />
-                    {vis.text}
-                  </span>
-                  <mdui-button
-                    variant="text"
-                    loading={busy || undefined}
-                    onClick={() => checkStatus(site.siteSlug)}
-                  >
-                    检查状态
-                  </mdui-button>
-                  {site.siteStatus === "failed" && (
-                    <mdui-button
-                      variant="text"
-                      loading={busy || undefined}
-                      onClick={() => reprovision(site.siteSlug)}
-                    >
-                      重新申请域名
-                    </mdui-button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {sites.map((site) => (
+            <div key={site.siteSlug} className="flex items-center gap-2">
+              <mdui-text-field
+                variant="outlined"
+                label="博客网址"
+                value={site.siteSlug}
+                disabled
+                class="flex-1"
+              />
+              <span className="text-sm text-gray-500 shrink-0">.{PAGES_ROOT_DOMAIN}</span>
+            </div>
+          ))}
 
           {/* 新申请输入框（未达上限时显示） */}
           {sites.length < MAX_SITES && (

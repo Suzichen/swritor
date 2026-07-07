@@ -153,7 +153,7 @@ function AppContent() {
           {isConfigured && (isLoggedIn ? (
             <div className="flex items-center justify-between pt-1">
               <p className="text-xs text-gray-500 truncate">
-                {user?.siteSlug ? `${user.siteSlug}.pages.s-blog.me` : "已登录"}
+                {user?.siteSlug ? `${user.siteSlug}.spage.me` : "已登录"}
               </p>
               <mdui-button-icon icon="logout" onClick={logout} />
             </div>

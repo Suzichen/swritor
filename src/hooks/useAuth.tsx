@@ -14,15 +14,6 @@ export interface UserInfo {
 export interface SiteInfo {
   siteSlug: string;
   hostname: string;
-  siteStatus: string;
-  cfCustomHostnameId?: string | null;
-}
-
-/** Hostname status as returned by `hostname_provision` / `hostname_status`. */
-export interface HostnameStatus {
-  status: string;
-  sslStatus?: string | null;
-  validationErrors: string[];
 }
 
 interface AuthStatusResponse {
@@ -43,10 +34,8 @@ interface AuthContextValue {
   // Profile
   updateName: (name: string) => Promise<void>;
   updateAvatar: (filePath: string) => Promise<string>;
-  // Sites / hostname
+  // Sites
   createSite: (siteSlug: string) => Promise<SiteInfo>;
-  provisionHostname: (siteSlug: string) => Promise<HostnameStatus>;
-  getHostnameStatus: (siteSlug: string) => Promise<HostnameStatus>;
   listSites: () => Promise<SiteInfo[]>;
 }
 
@@ -117,13 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return site;
   };
 
-  const provisionHostname = async (siteSlug: string): Promise<HostnameStatus> => {
-    return await invoke<HostnameStatus>("hostname_provision", { siteSlug });
-  };
 
-  const getHostnameStatus = async (siteSlug: string): Promise<HostnameStatus> => {
-    return await invoke<HostnameStatus>("hostname_status", { siteSlug });
-  };
 
   const listSites = async (): Promise<SiteInfo[]> => {
     return await invoke<SiteInfo[]>("sites_list");
@@ -144,8 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateName,
         updateAvatar,
         createSite,
-        provisionHostname,
-        getHostnameStatus,
         listSites,
       }}
     >
