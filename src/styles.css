@@ -58,6 +58,16 @@ mdui-select::part(menu) {
   overflow-y: auto;
 }
 
+/* 加宽的对话框（构建成功、部署） */
+mdui-dialog.wide-dialog::part(panel) {
+  width: min(92vw, 600px);
+  max-width: 92vw;
+}
+/* 底部操作区垂直居中，使不同高度的按钮（如 split-button）对齐 */
+mdui-dialog.wide-dialog::part(action) {
+  align-items: center;
+}
+
 /* macOS WebKit: backdrop-blur + CSS variable bg can be transparent on first paint.
    Add an opaque fallback that only applies on WebKit (Safari/Mac WebView). */
 @supports (-webkit-appearance: none) and (not (overflow: overlay)) {

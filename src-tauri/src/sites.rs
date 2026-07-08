@@ -71,6 +71,9 @@ pub fn map_deploy_error(status: u16, body: &str) -> String {
             "reserved_site_slug" => return "该博客网址为保留词，请更换".to_string(),
             "site_limit_exceeded" => return "每个账号最多创建 2 个站点".to_string(),
             "site_not_found" => return "未找到该站点".to_string(),
+            "artifact_too_large" => return "构建产物超过大小上限（200MB）".to_string(),
+            "deployment_not_found" => return "未找到该部署记录".to_string(),
+            "invalid_deployment_state" => return "部署状态异常，请重试".to_string(),
             "unauthorized" => return "登录已过期，请重新登录".to_string(),
             "pocketbase_error" => {
                 let m = msg.to_ascii_lowercase();

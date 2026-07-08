@@ -516,18 +516,19 @@ pub async fn get_serve_status(state: State<'_, AppState>) -> Result<Option<Strin
 }
 
 #[tauri::command]
-pub async fn get_task_status(state: State<'_, AppState>) -> Result<(bool, bool), String> {
+pub async fn get_task_status(state: State<'_, AppState>) -> Result<(bool, bool, bool), String> {
     let building = *state.build_running.lock().unwrap();
     let syncing = *state.sync_running.lock().unwrap();
-    Ok((building, syncing))
+    let deploying = *state.deploy_running.lock().unwrap();
+    Ok((building, syncing, deploying))
 }
 
 /// RAII guard that resets a bool flag to false on drop.
-struct RunningGuard<'a> {
+pub(crate) struct RunningGuard<'a> {
     flag: &'a std::sync::Mutex<bool>,
 }
 impl<'a> RunningGuard<'a> {
-    fn acquire(flag: &'a std::sync::Mutex<bool>) -> Result<Self, String> {
+    pub(crate) fn acquire(flag: &'a std::sync::Mutex<bool>) -> Result<Self, String> {
         let mut running = flag.lock().unwrap();
         if *running {
             return Err("任务正在进行中".into());

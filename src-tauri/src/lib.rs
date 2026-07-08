@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod commands;
+pub mod deploy;
 pub mod error;
 pub mod models;
 pub mod shell_fetcher;
@@ -10,6 +11,7 @@ use tauri::{Manager, RunEvent};
 
 use auth::*;
 use commands::*;
+use deploy::*;
 use sites::*;
 use state::AppState;
 
@@ -66,6 +68,8 @@ pub fn run() {
             profile_update_avatar,
             site_create,
             sites_list,
+            deploy_site,
+            cancel_deploy,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

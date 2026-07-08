@@ -63,6 +63,14 @@ declare module "react" {
         placement?: string;
       };
       "mdui-menu-item": MduiBase & { value?: string };
+      "mdui-menu": MduiBase & { value?: string; dense?: boolean };
+      "mdui-dropdown": MduiBase & {
+        open?: boolean;
+        disabled?: boolean;
+        placement?: string;
+        trigger?: string;
+        "open-on-pointer"?: boolean;
+      };
       "mdui-switch": MduiBase & {
         checked?: boolean;
         disabled?: boolean;

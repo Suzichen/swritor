@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useAuth, type SiteInfo } from "../hooks/useAuth";
+import { DeployButton } from "../components/deploy/DeployButton";
 
 interface Props {
   blogDir: string;
@@ -15,7 +17,17 @@ interface BuildResult {
   durationMs: number;
 }
 
+type DeployState = "idle" | "running" | "cancelling" | "success" | "error";
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
 export function ControlCenter({ blogDir }: Props) {
+  const { isLoggedIn, listSites } = useAuth();
+
   // ── Serve state ──
   const [serveAddr, setServeAddr] = useState<string | null>(null);
   const [serveLoading, setServeLoading] = useState(false);
@@ -36,19 +48,70 @@ export function ControlCenter({ blogDir }: Props) {
   const [syncError, setSyncError] = useState("");
   const syncDialogRef = useRef<HTMLElement & { open: boolean }>(null);
 
+  // ── Deploy state ──
+  const [sites, setSites] = useState<SiteInfo[]>([]);
+  const [deployState, setDeployState] = useState<DeployState>("idle");
+  const [deployTarget, setDeployTarget] = useState<SiteInfo | null>(null);
+  const [deployPhase, setDeployPhase] = useState("");
+  const [deployPercent, setDeployPercent] = useState(-1);
+  const [deployLogs, setDeployLogs] = useState<string[]>([]);
+  const [deployUrl, setDeployUrl] = useState("");
+  const [deployError, setDeployError] = useState("");
+  const deployDialogRef = useRef<HTMLElement & { open: boolean }>(null);
+  const buildLogRef = useRef<HTMLDivElement>(null);
+  const deployLogRef = useRef<HTMLDivElement>(null);
+  const deployCancelRef = useRef(false);
+
+  const deployBusy = deployState === "running" || deployState === "cancelling";
+
+  // Reason the deploy split-button is unavailable (drives its tooltip).
+  const deployDisabledReason = (): string | undefined => {
+    if (!isLoggedIn) return "请先登录后再部署";
+    if (sites.length === 0) return "请先在设置中创建站点";
+    if (buildState === "building") return "正在构建，请稍候";
+    if (deployBusy) return "正在部署，请稍候";
+    return undefined;
+  };
+
   // ── Init ──
   useEffect(() => {
     invoke<string | null>("get_serve_status").then(setServeAddr);
     // 恢复后台任务状态
-    invoke<[boolean, boolean]>("get_task_status").then(([building, syncing]) => {
+    invoke<[boolean, boolean, boolean]>("get_task_status").then(([building, syncing, deploying]) => {
       if (building) setBuildState("building");
       if (syncing) setSyncState("syncing");
+      if (deploying) setDeployState("running");
     });
   }, []);
 
   useEffect(() => {
     invoke<boolean>("check_sync_available", { blogDir }).then(setSyncAvailable);
   }, [blogDir]);
+
+  // Load the user's sites for the deploy menu.
+  const reloadSites = useCallback(async () => {
+    if (!isLoggedIn) {
+      setSites([]);
+      return;
+    }
+    try {
+      setSites(await listSites());
+    } catch {
+      setSites([]);
+    }
+  }, [isLoggedIn, listSites]);
+
+  useEffect(() => {
+    reloadSites();
+  }, [reloadSites]);
+
+  // Auto-scroll the log panels to the bottom as new lines arrive.
+  useEffect(() => {
+    if (buildLogRef.current) buildLogRef.current.scrollTop = buildLogRef.current.scrollHeight;
+  }, [buildLogs]);
+  useEffect(() => {
+    if (deployLogRef.current) deployLogRef.current.scrollTop = deployLogRef.current.scrollHeight;
+  }, [deployLogs]);
 
   // ── Serve handlers ──
   const handleStartServe = async () => {
@@ -93,7 +156,6 @@ export function ControlCenter({ blogDir }: Props) {
           case "photo_progress":
             setBuildLogs((prev) => {
               const msg = `[albums] ${data.album} (${data.current}/${data.total})`;
-              // Replace last photo_progress line for same album to avoid flooding
               if (prev.length > 0 && prev[prev.length - 1].startsWith(`[albums] ${data.album} (`)) {
                 return [...prev.slice(0, -1), msg];
               }
@@ -128,6 +190,132 @@ export function ControlCenter({ blogDir }: Props) {
 
   const handleOpenDist = () => {
     invoke("open_in_explorer", { path: `${blogDir}\\dist` });
+  };
+
+  // ── Deploy handlers ──
+  const appendDeployLog = (line: string) => setDeployLogs((prev) => [...prev, line]);
+
+  const startDeploy = useCallback(
+    async (site: SiteInfo, opts: { rebuild: boolean }) => {
+      // Close the build dialog if the deploy was triggered from it.
+      if (buildDialogRef.current) buildDialogRef.current.open = false;
+
+      setDeployTarget(site);
+      setDeployLogs([]);
+      setDeployError("");
+      setDeployUrl("");
+      setDeployPercent(-1);
+      setDeployPhase(opts.rebuild ? "准备构建" : "准备部署");
+      setDeployState("running");
+      deployCancelRef.current = false;
+      if (deployDialogRef.current) deployDialogRef.current.open = true;
+
+      // Listen to build progress (only used when rebuilding) and deploy progress.
+      const unlistenBuild: UnlistenFn = await listen<string>("build-progress", (e) => {
+        try {
+          const data = JSON.parse(e.payload);
+          switch (data.type) {
+            case "step_start":
+              appendDeployLog(`${data.step}...`);
+              break;
+            case "step_done":
+              appendDeployLog(`${data.step} ✓ ${data.detail}`);
+              break;
+            case "albums_start":
+              appendDeployLog(`[albums] 处理 ${data.count} 个相册...`);
+              break;
+            case "photo_album_done":
+              appendDeployLog(`[albums] ${data.album} ✓ ${data.count} 张`);
+              break;
+          }
+        } catch {
+          /* ignore */
+        }
+      });
+
+      const unlistenDeploy: UnlistenFn = await listen<string>("deploy-progress", (e) => {
+        try {
+          const data = JSON.parse(e.payload);
+          switch (data.type) {
+            case "scanning":
+              setDeployPhase("扫描构建产物");
+              appendDeployLog("扫描构建产物...");
+              break;
+            case "scanned":
+              appendDeployLog(`发现 ${data.fileCount} 个文件（${formatBytes(data.totalBytes)}）`);
+              break;
+            case "init":
+              setDeployPhase("上传中");
+              appendDeployLog(`已创建部署 ${data.releaseId}`);
+              break;
+            case "uploading":
+              setDeployPhase("上传中");
+              setDeployPercent((data.current / data.total) * 100);
+              setDeployLogs((prev) => {
+                const msg = `上传文件 (${data.current}/${data.total})`;
+                if (prev.length > 0 && prev[prev.length - 1].startsWith("上传文件 (")) {
+                  return [...prev.slice(0, -1), msg];
+                }
+                return [...prev, msg];
+              });
+              break;
+            case "finalizing":
+              setDeployPhase("校验并发布");
+              setDeployPercent(-1);
+              appendDeployLog("正在校验并发布...");
+              break;
+            case "retry":
+              appendDeployLog(`补传 ${data.missing} 个缺失文件...`);
+              break;
+            case "done":
+              appendDeployLog("发布完成 ✓");
+              break;
+            case "log":
+              appendDeployLog(data.message);
+              break;
+          }
+        } catch {
+          /* ignore */
+        }
+      });
+
+      try {
+        if (opts.rebuild) {
+          setDeployPhase("构建中");
+          appendDeployLog("开始构建网站...");
+          await invoke<string>("build_blog", { blogDir });
+          appendDeployLog("构建完成 ✓");
+        }
+        setDeployPhase("上传中");
+        const url = await invoke<string>("deploy_site", { blogDir, siteSlug: site.siteSlug });
+        setDeployUrl(url);
+        setDeployState("success");
+      } catch (e) {
+        setDeployError(deployCancelRef.current ? "已取消部署" : String(e));
+        setDeployState("error");
+      } finally {
+        unlistenBuild();
+        unlistenDeploy();
+      }
+    },
+    [blogDir]
+  );
+
+  const handleCancelDeploy = () => {
+    deployCancelRef.current = true;
+    setDeployState("cancelling");
+    // Cancel both the upload phase and the (possible) rebuild phase.
+    invoke("cancel_deploy");
+    invoke("cancel_build");
+  };
+
+  const closeDeployDialog = () => {
+    if (deployDialogRef.current) deployDialogRef.current.open = false;
+    setDeployState("idle");
+  };
+
+  const openDeployedSite = () => {
+    if (deployUrl) invoke("open_url", { url: deployUrl });
   };
 
   // ── Sync handlers ──
@@ -218,9 +406,18 @@ export function ControlCenter({ blogDir }: Props) {
             <h3 className="text-base font-medium mb-1">生成网站</h3>
             <p className="text-sm" style={{ color: "#6b7280" }}>生成可部署的博客静态文件</p>
           </div>
-          <mdui-button variant="filled" onClick={handleBuild} icon="build" disabled={buildState === "building" || undefined}>
-            构建
-          </mdui-button>
+          <div className="flex items-center gap-2">
+            <mdui-button variant="filled" onClick={handleBuild} icon="build" disabled={buildState === "building" || deployBusy || undefined}>
+              构建
+            </mdui-button>
+            <DeployButton
+              sites={sites}
+              size="small"
+              disabled={!!deployDisabledReason()}
+              disabledReason={deployDisabledReason()}
+              onSelect={(site) => startDeploy(site, { rebuild: true })}
+            />
+          </div>
         </div>
       </mdui-card>
 
@@ -247,14 +444,14 @@ export function ControlCenter({ blogDir }: Props) {
       </mdui-card>
 
       {/* ── Build Dialog ── */}
-      <mdui-dialog ref={buildDialogRef} close-on-overlay-click={buildState !== "building" && buildState !== "cancelling" || undefined}>
+      <mdui-dialog ref={buildDialogRef} class="wide-dialog" close-on-overlay-click={buildState !== "building" && buildState !== "cancelling" || undefined}>
         <span slot="headline">生成网站</span>
-        <div slot="description" style={{ minHeight: 120 }}>
+        <div slot="description" style={{ minHeight: 120, width: "100%" }}>
           {(buildState === "building" || buildState === "cancelling") && (
             <>
               <mdui-linear-progress></mdui-linear-progress>
               {buildState === "cancelling" && <p className="mt-2 text-sm" style={{ color: "#ea580c" }}>正在等待当前操作完成后取消...</p>}
-              <div className="mt-3 text-sm max-h-48 overflow-y-auto" style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: 12 }}>
+              <div ref={buildLogRef} className="mt-3 text-sm max-h-48 overflow-y-auto" style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: 12 }}>
                 {buildLogs.map((l, i) => (
                   <p key={i} className="mb-1">{l}</p>
                 ))}
@@ -274,7 +471,7 @@ export function ControlCenter({ blogDir }: Props) {
             <p className="text-sm" style={{ color: "#dc2626" }}>{buildError}</p>
           )}
         </div>
-        <div slot="action">
+        <div slot="action" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
           {(buildState === "building" || buildState === "cancelling") && (
             <mdui-button variant="text" onClick={handleCancelBuild} loading={buildState === "cancelling" || undefined} disabled={buildState === "cancelling" || undefined}>
               {buildState === "cancelling" ? "正在取消..." : "取消"}
@@ -290,7 +487,94 @@ export function ControlCenter({ blogDir }: Props) {
               <mdui-button variant="text" onClick={() => { if (buildDialogRef.current) buildDialogRef.current.open = false; setBuildState("idle"); }}>
                 关闭
               </mdui-button>
+              {buildState === "success" && (
+                <DeployButton
+                  sites={sites}
+                  size="small"
+                  disabled={!!deployDisabledReason()}
+                  disabledReason={deployDisabledReason()}
+                  onSelect={(site) => startDeploy(site, { rebuild: false })}
+                />
+              )}
             </>
+          )}
+        </div>
+      </mdui-dialog>
+
+      {/* ── Deploy Dialog ── */}
+      <mdui-dialog
+        ref={deployDialogRef}
+        class={deployBusy ? "wide-dialog" : undefined}
+        close-on-overlay-click={!deployBusy || undefined}
+        close-on-esc={!deployBusy || undefined}
+      >
+        <span slot="headline">
+          部署到 {deployTarget ? deployTarget.hostname : ""}
+        </span>
+        <div slot="description" style={{ minHeight: deployBusy ? 160 : undefined, width: "100%" }}>
+          {deployBusy && (
+            <>
+              {deployPercent < 0 ? (
+                <mdui-linear-progress></mdui-linear-progress>
+              ) : (
+                <mdui-linear-progress value={deployPercent} max={100}></mdui-linear-progress>
+              )}
+              <p className="mt-2 text-sm font-medium">{deployPhase}</p>
+              {deployState === "cancelling" && (
+                <p className="mt-1 text-sm" style={{ color: "#ea580c" }}>正在取消部署...</p>
+              )}
+              <div ref={deployLogRef} className="mt-3 text-sm max-h-48 overflow-y-auto" style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: 12 }}>
+                {deployLogs.map((l, i) => (
+                  <p key={i} className="mb-1">{l}</p>
+                ))}
+              </div>
+            </>
+          )}
+          {deployState === "success" && (
+            <div className="text-sm">
+              <p style={{ color: "#16a34a", fontWeight: 500, marginBottom: 8 }}>✓ 部署完成，站点已上线</p>
+              <a
+                href={deployUrl}
+                onClick={(e) => { e.preventDefault(); openDeployedSite(); }}
+                className="break-all inline-flex items-center gap-1"
+                style={{ color: "#2563eb", textDecoration: "underline", cursor: "pointer" }}
+              >
+                {deployUrl}
+                <mdui-icon name="open_in_new" style={{ fontSize: 14 }} />
+              </a>
+            </div>
+          )}
+          {deployState === "error" && (
+            <div className="text-sm">
+              <p style={{ color: "#dc2626", marginBottom: 8 }}>{deployError}</p>
+              <div className="max-h-40 overflow-y-auto" style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>
+                {deployLogs.map((l, i) => (
+                  <p key={i} className="mb-1">{l}</p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <div slot="action" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+          {deployBusy && (
+            <mdui-button
+              variant="text"
+              onClick={handleCancelDeploy}
+              loading={deployState === "cancelling" || undefined}
+              disabled={deployState === "cancelling" || undefined}
+            >
+              {deployState === "cancelling" ? "正在取消..." : "取消"}
+            </mdui-button>
+          )}
+          {deployState === "success" && (
+            <mdui-button variant="text" onClick={closeDeployDialog}>
+              关闭
+            </mdui-button>
+          )}
+          {deployState === "error" && (
+            <mdui-button variant="text" onClick={closeDeployDialog}>
+              关闭
+            </mdui-button>
           )}
         </div>
       </mdui-dialog>
