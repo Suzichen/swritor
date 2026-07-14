@@ -12,7 +12,15 @@ declare module "react" {
     interface IntrinsicElements {
       "mdui-layout": MduiBase;
       "mdui-layout-main": MduiBase;
-      "mdui-navigation-drawer": MduiBase & { open?: boolean; contained?: boolean };
+      "mdui-navigation-drawer": MduiBase & {
+        open?: boolean;
+        modal?: boolean;
+        placement?: "left" | "right";
+        contained?: boolean;
+        "close-on-esc"?: boolean;
+        "close-on-overlay-click"?: boolean;
+        onclose?: () => void;
+      };
       "mdui-top-app-bar": MduiBase;
       "mdui-top-app-bar-title": MduiBase;
       "mdui-list": MduiBase;
@@ -30,7 +38,7 @@ declare module "react" {
         icon?: string;
         "end-icon"?: string;
       };
-      "mdui-button-icon": MduiBase & { icon?: string };
+      "mdui-button-icon": MduiBase & { icon?: string; loading?: boolean };
       "mdui-icon": MduiBase & { name?: string };
       "mdui-card": MduiBase & { variant?: string };
       "mdui-linear-progress": MduiBase & { value?: number; max?: number };
@@ -78,6 +86,12 @@ declare module "react" {
       "mdui-collapse": MduiBase & { accordion?: boolean; value?: string };
       "mdui-collapse-item": MduiBase & { value?: string; header?: string };
       "mdui-snackbar": MduiBase & { open?: boolean; placement?: string };
+      "mdui-tooltip": MduiBase & {
+        content?: string;
+        trigger?: string;
+        disabled?: boolean;
+        open?: boolean;
+      };
     }
   }
 }

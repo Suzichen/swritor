@@ -24,6 +24,11 @@ mdui-navigation-drawer::part(panel) {
   flex-direction: column;
 }
 
+mdui-navigation-drawer.album-settings-drawer::part(panel) {
+  width: min(480px, 92vw);
+  max-width: 92vw;
+}
+
 mdui-layout {
   height: 100vh;
 }

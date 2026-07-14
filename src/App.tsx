@@ -126,21 +126,21 @@ function AppContent() {
             onClick={() => setPage("posts")}
             icon="article"
           >
-            文章列表
+            文　章
           </mdui-list-item>
           <mdui-list-item
             active={page === "albums" ? true : undefined}
             onClick={() => setPage("albums")}
             icon="photo_library"
           >
-            相册列表
+            相　册
           </mdui-list-item>
           <mdui-list-item
             active={page === "settings" ? true : undefined}
             onClick={() => setPage("settings")}
             icon="settings"
           >
-            设置
+            设　置
           </mdui-list-item>
         </mdui-list>
         <div className="mt-auto p-4 space-y-2">

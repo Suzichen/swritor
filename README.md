@@ -5,10 +5,11 @@
 ## 功能特性
 
 - 🚀 **初始化博客** - 通过图形化界面创建新的 Spage 博客项目
-- 📂 **管理现有博客** - 选择并查看现有博客项目的文件结构
+- 📂 **管理现有博客** - 选择并管理现有 Spage 博客
 - ⚡ **Rust 驱动** - 使用 [spage](https://github.com/Suzichen/spage) 系列 Rust crate（scaffold / engine），无需外部运行时
 - 🌐 **在线模板** - 初始化时自动从 npm registry 拉取最新项目模板
 - 🖥️ **跨平台支持** - 支持 Windows 和 macOS 平台
+- 🎉 **一键发布** - 支持一键部署到 `Spage` 平台
 
 
 ## 界面截图
@@ -161,7 +162,6 @@ spage-engine = { path = "../spage/crates/spage-engine" }
 ## TODO
 
 - [x] 初始化博客项目（在线拉取模板）
-- [x] 选择并浏览现有博客目录结构
 - [x] 编辑配置（config.json / album.config.json 可视化编辑）
 - [ ] 编写文章（Markdown 编辑器，frontmatter 表单）
 - [ ] 管理相册（相册浏览、图片增删、封面设置）

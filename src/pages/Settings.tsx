@@ -19,17 +19,10 @@ interface Props {
   blogDir: string;
 }
 
-interface AlbumProvider {
-  type: string;
-  endpoint: string;
-  region: string;
-  bucket: string;
-  publicUrl: string;
-}
+
 
 export function Settings({ blogDir }: Props) {
   const configRef = useRef<any>(null);
-  const albumConfigRef = useRef<any>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -53,11 +46,7 @@ export function Settings({ blogDir }: Props) {
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState("保存成功");
 
-  // Album settings
-  const [albumEnabled, setAlbumEnabled] = useState(false);
-  const [albumProvider, setAlbumProvider] = useState<AlbumProvider>({ type: "s3", endpoint: "", region: "", bucket: "", publicUrl: "" });
-  const [s3AccessKey, setS3AccessKey] = useState("");
-  const [s3SecretKey, setS3SecretKey] = useState("");
+
 
   // Version
   const [shellVersion, setShellVersion] = useState<string | null>(null);
@@ -107,29 +96,6 @@ export function Settings({ blogDir }: Props) {
     setPendingLogo(null);
     setPendingFavicon(null);
 
-    // Load album config
-    const albumRes = await invoke<{ raw: string }>("read_config", { blogDir, filename: "album.config.json" });
-    try {
-      const albumParsed = parseConfig(albumRes.raw);
-      albumConfigRef.current = albumParsed;
-      setAlbumEnabled(albumParsed.enabled ?? false);
-      if (albumParsed.provider) {
-        setAlbumProvider({
-          type: albumParsed.provider.type ?? "s3",
-          endpoint: albumParsed.provider.endpoint ?? "",
-          region: albumParsed.provider.region ?? "",
-          bucket: albumParsed.provider.bucket ?? "",
-          publicUrl: albumParsed.provider.publicUrl ?? "",
-        });
-      }
-    } catch {
-      albumConfigRef.current = {};
-    }
-
-    // Load .env
-    const env = await invoke<{ s3_access_key: string | null; s3_secret_key: string | null }>("read_env", { blogDir });
-    setS3AccessKey(env.s3_access_key ?? "");
-    setS3SecretKey(env.s3_secret_key ?? "");
 
     // Load versions
     const sv = await invoke<string | null>("get_shell_version");
@@ -192,22 +158,6 @@ export function Settings({ blogDir }: Props) {
       const content = serializeConfig(obj);
       await invoke("write_config", { blogDir, filename: "config.json", content });
 
-      // Save album config
-      const albumObj = albumConfigRef.current || {};
-      albumObj.enabled = albumEnabled;
-      albumObj.provider = {
-        type: albumProvider.type,
-        endpoint: albumProvider.endpoint,
-        region: albumProvider.region,
-        bucket: albumProvider.bucket,
-        publicUrl: albumProvider.publicUrl,
-      };
-      await invoke("write_config", { blogDir, filename: "album.config.json", content: serializeConfig(albumObj) });
-
-      // Save .env keys
-      if (s3AccessKey || s3SecretKey) {
-        await invoke("write_env", { blogDir, s3AccessKey: s3AccessKey, s3SecretKey: s3SecretKey });
-      }
 
       setPendingLogo(null);
       setPendingFavicon(null);
@@ -469,78 +419,6 @@ export function Settings({ blogDir }: Props) {
         </mdui-collapse>
       </section>
 
-      <mdui-divider />
-
-      {/* 相册设置 */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-medium">相册设置</h2>
-          <mdui-switch
-            checked={albumEnabled || undefined}
-            onChange={(e: any) => setAlbumEnabled(e.target.checked)}
-          />
-        </div>
-        <div className="space-y-3">
-          <mdui-select
-            variant="outlined"
-            label="存储类型"
-            value={albumProvider.type}
-            disabled={!albumEnabled || undefined}
-            onChange={(e: any) => setAlbumProvider({ ...albumProvider, type: e.target.value })}
-          >
-            <mdui-menu-item value="s3">S3 兼容存储</mdui-menu-item>
-          </mdui-select>
-          <mdui-text-field
-            variant="outlined"
-            label="Endpoint"
-            value={albumProvider.endpoint}
-            disabled={!albumEnabled || undefined}
-            placeholder="https://s3.amazonaws.com"
-            onInput={(e: any) => setAlbumProvider({ ...albumProvider, endpoint: e.target.value })}
-          />
-          <mdui-text-field
-            variant="outlined"
-            label="Region"
-            value={albumProvider.region}
-            disabled={!albumEnabled || undefined}
-            placeholder="us-east-1"
-            onInput={(e: any) => setAlbumProvider({ ...albumProvider, region: e.target.value })}
-          />
-          <mdui-text-field
-            variant="outlined"
-            label="Bucket"
-            value={albumProvider.bucket}
-            disabled={!albumEnabled || undefined}
-            onInput={(e: any) => setAlbumProvider({ ...albumProvider, bucket: e.target.value })}
-          />
-          <mdui-text-field
-            variant="outlined"
-            label="Public URL"
-            value={albumProvider.publicUrl}
-            disabled={!albumEnabled || undefined}
-            placeholder="https://cdn.example.com"
-            onInput={(e: any) => setAlbumProvider({ ...albumProvider, publicUrl: e.target.value })}
-          />
-          <mdui-text-field
-            variant="outlined"
-            label="S3 Access Key"
-            value={s3AccessKey}
-            disabled={!albumEnabled || undefined}
-            type="password"
-            toggle-password
-            onInput={(e: any) => setS3AccessKey(e.target.value)}
-          />
-          <mdui-text-field
-            variant="outlined"
-            label="S3 Secret Key"
-            value={s3SecretKey}
-            disabled={!albumEnabled || undefined}
-            type="password"
-            toggle-password
-            onInput={(e: any) => setS3SecretKey(e.target.value)}
-          />
-        </div>
-      </section>
 
       <mdui-divider />
 
