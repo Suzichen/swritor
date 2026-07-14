@@ -808,20 +808,16 @@ pub async fn write_env(blog_dir: String, s3_access_key: String, s3_secret_key: S
         vec![]
     };
 
-    let mut found_ak = false;
-    let mut found_sk = false;
-    for line in lines.iter_mut() {
+    lines.retain(|line| {
         let key = line.split('=').next().unwrap_or("").trim();
-        if key == "S3_ACCESS_KEY" {
-            *line = format!("S3_ACCESS_KEY={s3_access_key}");
-            found_ak = true;
-        } else if key == "S3_SECRET_KEY" {
-            *line = format!("S3_SECRET_KEY={s3_secret_key}");
-            found_sk = true;
-        }
+        key != "S3_ACCESS_KEY" && key != "S3_SECRET_KEY"
+    });
+    if !s3_access_key.is_empty() {
+        lines.push(format!("S3_ACCESS_KEY={s3_access_key}"));
     }
-    if !found_ak { lines.push(format!("S3_ACCESS_KEY={s3_access_key}")); }
-    if !found_sk { lines.push(format!("S3_SECRET_KEY={s3_secret_key}")); }
+    if !s3_secret_key.is_empty() {
+        lines.push(format!("S3_SECRET_KEY={s3_secret_key}"));
+    }
 
     fs::write(&env_path, lines.join("\n")).map_err(|e| e.to_string())
 }

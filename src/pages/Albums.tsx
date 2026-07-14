@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { AlbumSettings } from "../components/settings/AlbumSettings";
 
 interface AlbumInfo {
@@ -18,6 +17,8 @@ export function Albums({ blogDir }: Props) {
   const [albums, setAlbums] = useState<AlbumInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMessage, setSnackMessage] = useState("");
 
   useEffect(() => {
     invoke<AlbumInfo[]>("list_albums", { blogDir }).then((list) => {
@@ -34,7 +35,7 @@ export function Albums({ blogDir }: Props) {
   };
 
   return (
-    <div className="relative min-h-full overflow-hidden">
+    <div className="min-h-full">
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-medium">相册列表</h2>
@@ -95,7 +96,6 @@ export function Albums({ blogDir }: Props) {
         open={settingsOpen || undefined}
         placement="right"
         modal
-        contained
         close-on-esc
         close-on-overlay-click
         onclose={() => setSettingsOpen(false)}
@@ -106,9 +106,27 @@ export function Albums({ blogDir }: Props) {
             blogDir={blogDir}
             open={settingsOpen}
             onCancel={() => setSettingsOpen(false)}
+            onSaved={() => {
+              setSettingsOpen(false);
+              setSnackMessage("保存成功");
+              setSnackOpen(true);
+            }}
+            onError={(message) => {
+              setSnackMessage(message);
+              setSnackOpen(true);
+            }}
           />
         </div>
       </mdui-navigation-drawer>
+
+      <mdui-snackbar
+        open={snackOpen || undefined}
+        placement="top"
+        auto-close-delay={2500}
+        onclose={() => setSnackOpen(false)}
+      >
+        {snackMessage}
+      </mdui-snackbar>
     </div>
   );
 }

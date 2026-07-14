@@ -14,6 +14,8 @@ interface Props {
   blogDir: string;
   open: boolean;
   onCancel: () => void;
+  onSaved: () => void;
+  onError: (message: string) => void;
 }
 
 const DEFAULT_PROVIDER: AlbumProvider = {
@@ -24,7 +26,13 @@ const DEFAULT_PROVIDER: AlbumProvider = {
   publicUrl: "",
 };
 
-export function AlbumSettings({ blogDir, open, onCancel }: Props) {
+export function AlbumSettings({
+  blogDir,
+  open,
+  onCancel,
+  onSaved,
+  onError,
+}: Props) {
   const configRef = useRef<any>({});
   const [enabled, setEnabled] = useState(false);
   const [provider, setProvider] = useState<AlbumProvider>(DEFAULT_PROVIDER);
@@ -32,7 +40,6 @@ export function AlbumSettings({ blogDir, open, onCancel }: Props) {
   const [s3SecretKey, setS3SecretKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [snackOpen, setSnackOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -62,14 +69,19 @@ export function AlbumSettings({ blogDir, open, onCancel }: Props) {
             bucket: parsed.provider?.bucket ?? "",
             publicUrl: parsed.provider?.publicUrl ?? "",
           });
-        } catch {
+        } catch (error) {
+          console.error("Failed to parse album settings", error);
           configRef.current = {};
           setEnabled(false);
           setProvider(DEFAULT_PROVIDER);
+          onError(`解析相册设置失败: ${String(error)}`);
         }
 
         setS3AccessKey(env.s3_access_key ?? "");
         setS3SecretKey(env.s3_secret_key ?? "");
+      } catch (error) {
+        console.error("Failed to load album settings", error);
+        onError(`加载相册设置失败: ${String(error)}`);
       } finally {
         setLoading(false);
       }
@@ -91,12 +103,12 @@ export function AlbumSettings({ blogDir, open, onCancel }: Props) {
         content: serializeConfig(config),
       });
 
-      if (s3AccessKey || s3SecretKey) {
-        await invoke("write_env", { blogDir, s3AccessKey, s3SecretKey });
-      }
+      await invoke("write_env", { blogDir, s3AccessKey, s3SecretKey });
 
-      setSnackOpen(true);
-      setTimeout(() => setSnackOpen(false), 2000);
+      onSaved();
+    } catch (error) {
+      console.error("Failed to save album settings", error);
+      onError(`保存相册设置失败: ${String(error)}`);
     } finally {
       setSaving(false);
     }
@@ -116,9 +128,8 @@ export function AlbumSettings({ blogDir, open, onCancel }: Props) {
         />
       </div>
 
-      <div className="space-y-3 [&>mdui-text-field]:w-full">
+      <div className="space-y-3 [&>mdui-select]:w-full [&>mdui-text-field]:w-full">
         <mdui-select
-          class="w-full"
           variant="outlined"
           label="存储类型"
           value={provider.type}
@@ -201,9 +212,6 @@ export function AlbumSettings({ blogDir, open, onCancel }: Props) {
         </mdui-button>
       </div>
 
-      <mdui-snackbar open={snackOpen || undefined} placement="top">
-        保存成功
-      </mdui-snackbar>
     </div>
   );
 }

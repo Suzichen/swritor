@@ -85,7 +85,12 @@ declare module "react" {
       };
       "mdui-collapse": MduiBase & { accordion?: boolean; value?: string };
       "mdui-collapse-item": MduiBase & { value?: string; header?: string };
-      "mdui-snackbar": MduiBase & { open?: boolean; placement?: string };
+      "mdui-snackbar": MduiBase & {
+        open?: boolean;
+        placement?: string;
+        "auto-close-delay"?: number;
+        onclose?: () => void;
+      };
       "mdui-tooltip": MduiBase & {
         content?: string;
         trigger?: string;
