@@ -16,11 +16,13 @@
 
 ![初始界面](https://img.spage.me/s-writor/20260615/Snipaste_0.png "初始界面")
 
-![初始界面2](https://img.spage.me/s-writor/20260615/Snipaste_7.png "初始界面2")
+![初始界面2](https://img.spage.me/s-writor/20260715/1.png "初始界面2")
 
-![文章管理](https://img.spage.me/s-writor/20260615/Snipaste_4.png "文章管理")
+![文章管理](https://img.spage.me/s-writor/20260715/2.png "文章管理")
 
-![设置界面](https://img.spage.me/s-writor/20260615/Snipaste_9.png "设置界面")
+![相册管理](https://img.spage.me/s-writor/20260715/3.png "相册设置")
+
+![设置界面](https://img.spage.me/s-writor/20260715/4.png "设置界面")
 
 
 ## 技术栈
