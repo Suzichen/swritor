@@ -55,7 +55,7 @@ export function PostEditor({ blogDir, filename, onBack }: Props) {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <mdui-layout class="post-editor-layout" full-height>
       <mdui-top-app-bar>
         <mdui-button-icon icon="arrow_back" onClick={onBack}></mdui-button-icon>
         <mdui-top-app-bar-title>{post.title}</mdui-top-app-bar-title>
@@ -65,14 +65,14 @@ export function PostEditor({ blogDir, filename, onBack }: Props) {
           保存
         </mdui-button>
       </mdui-top-app-bar>
-      <div className="flex-1 overflow-hidden">
+      <mdui-layout-main class="post-editor-main">
         <textarea
           className="w-full h-full p-6 font-mono text-sm resize-none outline-none border-none bg-white"
           value={raw}
           onChange={(e) => setRaw(e.target.value)}
           spellCheck={false}
         />
-      </div>
-    </div>
+      </mdui-layout-main>
+    </mdui-layout>
   );
 }

@@ -10,7 +10,7 @@ type MduiBase = React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLE
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      "mdui-layout": MduiBase;
+      "mdui-layout": MduiBase & { "full-height"?: boolean };
       "mdui-layout-main": MduiBase;
       "mdui-navigation-drawer": MduiBase & {
         open?: boolean;

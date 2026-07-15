@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { LoginDialog } from "./components/auth/LoginDialog";
 import { RegisterDialog } from "./components/auth/RegisterDialog";
 import { FirstTimeSetupDialog } from "./components/settings/FirstTimeSetupDialog";
+import { WindowShell } from "./components/common/WindowShell";
 
 type Page = "control" | "posts" | "albums" | "settings";
 
@@ -17,9 +18,11 @@ const SKIP_SETUP_KEY = "swritor-skip-site-setup";
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <WindowShell>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </WindowShell>
   );
 }
 
@@ -105,7 +108,7 @@ function AppContent() {
   }
 
   return (
-    <mdui-layout>
+    <mdui-layout full-height>
       <mdui-navigation-drawer open contained>
         <div className="p-4 pb-2">
           <h1 className="text-lg font-medium">Swritor</h1>

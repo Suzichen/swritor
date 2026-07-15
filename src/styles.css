@@ -10,8 +10,108 @@
 html, body, #root {
   margin: 0;
   padding: 0;
+  width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  background: var(--mdui-color-surface);
+}
+
+.window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  color: var(--mdui-color-on-surface);
+  background: var(--mdui-color-surface-container);
+  border-bottom: 1px solid var(--mdui-color-outline-variant);
+  user-select: none;
+}
+
+.window-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.window-title-icon {
+  color: var(--mdui-color-primary);
+  font-size: 22px;
+}
+
+.window-controls {
+  display: flex;
+  align-self: stretch;
+}
+
+.window-control {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  color: var(--mdui-color-on-surface-variant);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.window-control .material-icons {
+  font-size: 19px;
+}
+
+.window-control:hover {
+  color: var(--mdui-color-on-surface);
+  background: var(--mdui-color-surface-container-highest);
+}
+
+.window-control:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+
+.window-control-close:focus-visible {
+  color: var(--mdui-color-error);
+}
+
+.window-control-close:hover {
+  color: var(--mdui-color-on-error);
+  background: var(--mdui-color-error);
+}
+
+.app-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-content-native {
+  width: 100%;
+  height: 100%;
+}
+
+.app-content > * {
+  height: 100%;
+}
+
+.app-content .h-screen {
+  height: 100%;
 }
 
 /* mdui layout overrides */
@@ -29,12 +129,20 @@ mdui-navigation-drawer.album-settings-drawer::part(panel) {
   max-width: 92vw;
 }
 
-mdui-layout {
-  height: 100vh;
-}
+
 
 mdui-layout-main {
   overflow-y: auto;
+}
+
+.post-editor-main {
+  height: 100%;
+  overflow: hidden;
+}
+
+.post-editor-main textarea {
+  display: block;
+  box-sizing: border-box;
 }
 
 .post-list-item {
