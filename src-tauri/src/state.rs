@@ -1,6 +1,6 @@
+use spage_engine::serve::ServeHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use spage_engine::serve::ServeHandle;
 
 use crate::auth::AuthState;
 

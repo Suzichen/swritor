@@ -105,7 +105,11 @@ pub async fn delete_post(blog_dir: String, filename: String) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub async fn create_post(blog_dir: String, filename: String, content: String) -> Result<(), String> {
+pub async fn create_post(
+    blog_dir: String,
+    filename: String,
+    content: String,
+) -> Result<(), String> {
     let posts_dir = Path::new(&blog_dir).join("posts");
     fs::create_dir_all(&posts_dir).map_err(|e| e.to_string())?;
     let path = posts_dir.join(&filename);
@@ -150,8 +154,12 @@ pub async fn list_albums(blog_dir: String) -> Result<Vec<AlbumInfo>, String> {
                 .find(|a| a.get("dir").and_then(|d| d.as_str()) == Some(&dir_name))
                 .map(|a| {
                     (
-                        a.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()),
-                        a.get("cover").and_then(|c| c.as_str()).map(|s| s.to_string()),
+                        a.get("name")
+                            .and_then(|n| n.as_str())
+                            .map(|s| s.to_string()),
+                        a.get("cover")
+                            .and_then(|c| c.as_str())
+                            .map(|s| s.to_string()),
                     )
                 })
                 .unwrap_or((None, None))
@@ -186,7 +194,11 @@ pub async fn read_config(blog_dir: String, filename: String) -> Result<SiteConfi
 }
 
 #[tauri::command]
-pub async fn write_config(blog_dir: String, filename: String, content: String) -> Result<(), String> {
+pub async fn write_config(
+    blog_dir: String,
+    filename: String,
+    content: String,
+) -> Result<(), String> {
     let path = Path::new(&blog_dir).join(&filename);
     fs::write(&path, &content).map_err(|e| e.to_string())
 }
@@ -205,7 +217,11 @@ pub async fn select_image(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub async fn copy_to_public(blog_dir: String, source: String, filename: String) -> Result<(), String> {
+pub async fn copy_to_public(
+    blog_dir: String,
+    source: String,
+    filename: String,
+) -> Result<(), String> {
     let public_dir = Path::new(&blog_dir).join("public");
     fs::create_dir_all(&public_dir).map_err(|e| e.to_string())?;
     let dest = public_dir.join(&filename);
@@ -234,7 +250,11 @@ pub async fn init_blog(app: AppHandle, config: BlogConfig) -> Result<InitResult,
         description: config.description,
         author: config.author,
         site_url: config.site_url,
-        timezone: if config.timezone.is_empty() { None } else { Some(config.timezone) },
+        timezone: if config.timezone.is_empty() {
+            None
+        } else {
+            Some(config.timezone)
+        },
     };
 
     match spage_scaffold::scaffold(&input) {
@@ -302,22 +322,40 @@ pub async fn read_directory_tree(path: String) -> Result<FileNode, String> {
 fn parse_post_summary(path: &Path, content: &str) -> PostSummary {
     let filename = path.file_name().unwrap().to_string_lossy().to_string();
     let (frontmatter, _body) = split_frontmatter(content);
-    let title = extract_fm_str(&frontmatter, "title").unwrap_or_else(|| filename.replace(".md", ""));
+    let title =
+        extract_fm_str(&frontmatter, "title").unwrap_or_else(|| filename.replace(".md", ""));
     let date = extract_fm_str(&frontmatter, "date").unwrap_or_default();
     let tags = extract_fm_list(&frontmatter, "tags");
     let categories = extract_fm_list(&frontmatter, "categories");
     let preview = extract_fm_str(&frontmatter, "preview").unwrap_or_default();
-    PostSummary { filename, title, date, tags, categories, preview }
+    PostSummary {
+        filename,
+        title,
+        date,
+        tags,
+        categories,
+        preview,
+    }
 }
 
 fn parse_post_detail(filename: &str, raw: &str) -> PostDetail {
     let (frontmatter, body) = split_frontmatter(raw);
-    let title = extract_fm_str(&frontmatter, "title").unwrap_or_else(|| filename.replace(".md", ""));
+    let title =
+        extract_fm_str(&frontmatter, "title").unwrap_or_else(|| filename.replace(".md", ""));
     let date = extract_fm_str(&frontmatter, "date").unwrap_or_default();
     let tags = extract_fm_list(&frontmatter, "tags");
     let categories = extract_fm_list(&frontmatter, "categories");
     let preview = extract_fm_str(&frontmatter, "preview").unwrap_or_default();
-    PostDetail { filename: filename.to_string(), title, date, tags, categories, preview, content: body, raw: raw.to_string() }
+    PostDetail {
+        filename: filename.to_string(),
+        title,
+        date,
+        tags,
+        categories,
+        preview,
+        content: body,
+        raw: raw.to_string(),
+    }
 }
 
 fn split_frontmatter(content: &str) -> (String, String) {
@@ -369,16 +407,20 @@ fn extract_fm_list(fm: &str, key: &str) -> Vec<String> {
 
 fn first_photo(path: &Path) -> Option<String> {
     let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
-    let mut entries: Vec<_> = fs::read_dir(path).ok()?
+    let mut entries: Vec<_> = fs::read_dir(path)
+        .ok()?
         .filter_map(|e| e.ok())
         .filter(|e| {
-            e.path().extension()
+            e.path()
+                .extension()
                 .map(|ext| exts.contains(&ext.to_string_lossy().to_lowercase().as_str()))
                 .unwrap_or(false)
         })
         .collect();
     entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-    entries.first().map(|e| e.file_name().to_string_lossy().to_string())
+    entries
+        .first()
+        .map(|e| e.file_name().to_string_lossy().to_string())
 }
 
 fn count_photos(path: &Path) -> usize {
@@ -398,32 +440,56 @@ fn count_photos(path: &Path) -> usize {
         .unwrap_or(0)
 }
 
-
-
 fn read_flat_dir(path: &Path) -> Result<FileNode, String> {
-    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let mut children = Vec::new();
     let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
         let ep = entry.path();
-        let fname = ep.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        if fname.starts_with('.') { continue; }
+        let fname = ep
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if fname.starts_with('.') {
+            continue;
+        }
         if ep.is_file() {
-            children.push(FileNode { name: fname, path: ep.display().to_string(), is_directory: false, children: None });
+            children.push(FileNode {
+                name: fname,
+                path: ep.display().to_string(),
+                is_directory: false,
+                children: None,
+            });
         }
     }
     children.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    Ok(FileNode { name, path: path.display().to_string(), is_directory: true, children: Some(children) })
+    Ok(FileNode {
+        name,
+        path: path.display().to_string(),
+        is_directory: true,
+        children: Some(children),
+    })
 }
 
 fn read_albums_dir(path: &Path) -> Result<FileNode, String> {
-    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let mut children = Vec::new();
     let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
         let ep = entry.path();
-        let fname = ep.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        if fname.starts_with('.') || fname == "thumbs" { continue; }
+        let fname = ep
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if fname.starts_with('.') || fname == "thumbs" {
+            continue;
+        }
         if ep.is_dir() {
             let count = count_photos(&ep);
             children.push(FileNode {
@@ -435,9 +501,13 @@ fn read_albums_dir(path: &Path) -> Result<FileNode, String> {
         }
     }
     children.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    Ok(FileNode { name, path: path.display().to_string(), is_directory: true, children: Some(children) })
+    Ok(FileNode {
+        name,
+        path: path.display().to_string(),
+        is_directory: true,
+        children: Some(children),
+    })
 }
-
 
 // ── 控制中心相关 ──────────────────────────────────────────
 
@@ -465,8 +535,8 @@ pub async fn start_serve(
         runtime: Some(tokio::runtime::Handle::current()),
     };
 
-    let handle = spage_engine::serve::serve_with_context(config, Some(ctx))
-        .map_err(|e| e.to_string())?;
+    let handle =
+        spage_engine::serve::serve_with_context(config, Some(ctx)).map_err(|e| e.to_string())?;
 
     let addr = format!("http://127.0.0.1:{}", handle.address().port());
     *state.serve_handle.lock().unwrap() = Some(handle);
@@ -544,10 +614,14 @@ impl Drop for RunningGuard<'_> {
 }
 
 #[tauri::command]
-pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
-    use std::sync::atomic::Ordering;
+pub async fn build_blog(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    blog_dir: String,
+) -> Result<String, String> {
     use spage_engine::build::BuildOptions;
     use spage_engine::progress::{BuildContext, BuildProgressEvent};
+    use std::sync::atomic::Ordering;
 
     let _guard = RunningGuard::acquire(&state.build_running)?;
     state.build_cancel.store(false, Ordering::SeqCst);
@@ -609,7 +683,9 @@ pub async fn build_blog(app: AppHandle, state: State<'_, AppState>, blog_dir: St
 
 #[tauri::command]
 pub async fn cancel_build(state: State<'_, AppState>) -> Result<(), String> {
-    state.build_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+    state
+        .build_cancel
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
 
@@ -630,9 +706,13 @@ pub async fn check_sync_available(blog_dir: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: String) -> Result<String, String> {
-    use std::sync::atomic::Ordering;
+pub async fn sync_media(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    blog_dir: String,
+) -> Result<String, String> {
     use spage_engine::media_sync::{S3Credentials, SyncConfig, SyncContext, SyncProgress};
+    use std::sync::atomic::Ordering;
 
     let _guard = RunningGuard::acquire(&state.sync_running)?;
     state.sync_cancel.store(false, Ordering::SeqCst);
@@ -693,7 +773,9 @@ pub async fn sync_media(app: AppHandle, state: State<'_, AppState>, blog_dir: St
 
 #[tauri::command]
 pub async fn cancel_sync(state: State<'_, AppState>) -> Result<(), String> {
-    state.sync_cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+    state
+        .sync_cancel
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
 
@@ -779,7 +861,10 @@ pub async fn update_shell_cache(app: AppHandle) -> Result<String, String> {
 pub async fn read_env(blog_dir: String) -> Result<EnvData, String> {
     let env_path = Path::new(&blog_dir).join(".env");
     if !env_path.is_file() {
-        return Ok(EnvData { s3_access_key: None, s3_secret_key: None });
+        return Ok(EnvData {
+            s3_access_key: None,
+            s3_secret_key: None,
+        });
     }
     let mut access_key = None;
     let mut secret_key = None;
@@ -792,11 +877,18 @@ pub async fn read_env(blog_dir: String) -> Result<EnvData, String> {
             }
         }
     }
-    Ok(EnvData { s3_access_key: access_key, s3_secret_key: secret_key })
+    Ok(EnvData {
+        s3_access_key: access_key,
+        s3_secret_key: secret_key,
+    })
 }
 
 #[tauri::command]
-pub async fn write_env(blog_dir: String, s3_access_key: String, s3_secret_key: String) -> Result<(), String> {
+pub async fn write_env(
+    blog_dir: String,
+    s3_access_key: String,
+    s3_secret_key: String,
+) -> Result<(), String> {
     let env_path = Path::new(&blog_dir).join(".env");
     let mut lines: Vec<String> = if env_path.is_file() {
         fs::read_to_string(&env_path)

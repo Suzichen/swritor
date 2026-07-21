@@ -40,8 +40,8 @@ function AppContent() {
     if (saved) setBlogDir(saved);
   }, []);
 
-  // Open setup once after login. Profile/site updates refresh `user`; they must
-  // not close a setup dialog that is still submitting the remaining fields.
+  // This effect only opens the dialog. Closing remains an explicit user action
+  // so refreshing the profile while the dialog is open cannot dismiss it.
   useEffect(() => {
     if (!isLoggedIn) {
       setShowSetup(false);
@@ -54,7 +54,7 @@ function AppContent() {
     ) {
       setShowSetup(true);
     }
-  }, [isLoggedIn, user?.id]);
+  }, [isLoggedIn, user?.id, user?.siteSlug]);
 
   const skipSetup = () => {
     localStorage.setItem(SKIP_SETUP_KEY, "1");

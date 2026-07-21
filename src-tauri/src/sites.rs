@@ -132,10 +132,7 @@ pub async fn site_create(
     let parsed: serde_json::Value =
         serde_json::from_str(&body).map_err(|_| "解析响应失败".to_string())?;
     let site = &parsed["site"];
-    let slug = site["siteSlug"]
-        .as_str()
-        .unwrap_or(&site_slug)
-        .to_string();
+    let slug = site["siteSlug"].as_str().unwrap_or(&site_slug).to_string();
     let info = SiteInfo {
         hostname: site["hostname"]
             .as_str()
@@ -156,7 +153,6 @@ pub async fn site_create(
 
     Ok(info)
 }
-
 
 /// List the current user's sites directly from PocketBase (owner-scoped),
 /// reading the cached `siteStatus` for instant display.
@@ -201,7 +197,6 @@ pub async fn sites_list(state: tauri::State<'_, AppState>) -> Result<Vec<SiteInf
     }
     Ok(out)
 }
-
 
 // ── Tests ──────────────────────────────────────────────────
 

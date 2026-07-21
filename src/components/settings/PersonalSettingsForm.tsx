@@ -37,7 +37,16 @@ interface Props {
   onReadyChange?: (ready: boolean) => void;
 }
 
-
+function localPublicAssetPath(blogDir: string, assetPath: string): string | null {
+  if (
+    !assetPath.startsWith("/") ||
+    assetPath.startsWith("//") ||
+    assetPath.split("/").includes("..")
+  ) {
+    return null;
+  }
+  return `${blogDir}/public${assetPath}`;
+}
 
 export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props>(
   function PersonalSettingsForm({ blogDir, mode, showProfileSaveButton, onSaved, onNotify, onReadyChange }, ref) {
@@ -91,7 +100,7 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
           if (cancelled) return;
           const fallbackAuthor = parsed.author ?? "";
           setConfigAuthor(fallbackAuthor);
-          setConfigLogo(parsed.logo ?? "/logo.png");
+          setConfigLogo(parsed.logo || "/logo.png");
           if (!nameEdited) setName(user?.name || fallbackAuthor);
           setProfileReady(true);
         } catch {
@@ -120,7 +129,8 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
     const avatarSrc = (): string => {
       if (pendingAvatar) return convertFileSrc(pendingAvatar);
       if (user?.avatar) return user.avatar;
-      return convertFileSrc(`${blogDir}/public${configLogo}`);
+      const localPath = localPublicAssetPath(blogDir, configLogo);
+      return localPath ? convertFileSrc(localPath) : configLogo;
     };
 
     const selectAvatar = async () => {
@@ -148,7 +158,9 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
           .trim()
           .toLowerCase();
         const avatarPath = pendingAvatar
-          ?? (persistDefaults && !user?.avatar ? `${blogDir}/public${configLogo}` : null);
+          ?? (persistDefaults && !user?.avatar
+            ? localPublicAssetPath(blogDir, configLogo)
+            : null);
         if (trimmed !== (user?.name ?? "") || avatarPath) {
           await updateProfile(trimmed, avatarPath);
           if (avatarPath) setPendingAvatar(null);

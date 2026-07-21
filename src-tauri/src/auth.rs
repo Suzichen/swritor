@@ -50,7 +50,9 @@ pub fn save_token(app: &AppHandle, token: &str) {
 
 pub fn load_token(app: &AppHandle) -> Option<String> {
     let store = app.store(STORE_FILENAME).ok()?;
-    store.get(TOKEN_KEY).and_then(|v| v.as_str().map(|s| s.to_string()))
+    store
+        .get(TOKEN_KEY)
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
 }
 
 pub fn clear_token(app: &AppHandle) {
@@ -195,10 +197,7 @@ pub async fn auth_register(email: String, password: String) -> Result<(), String
 
     // Send verification email
     let _ = client
-        .post(format!(
-            "{}/api/collections/users/request-verification",
-            pb
-        ))
+        .post(format!("{}/api/collections/users/request-verification", pb))
         .json(&serde_json::json!({ "email": email }))
         .send()
         .await;
@@ -217,10 +216,7 @@ pub async fn auth_login(
     let client = reqwest::Client::new();
 
     let res = client
-        .post(format!(
-            "{}/api/collections/users/auth-with-password",
-            pb
-        ))
+        .post(format!("{}/api/collections/users/auth-with-password", pb))
         .json(&serde_json::json!({
             "identity": email,
             "password": password,
@@ -250,7 +246,10 @@ pub async fn auth_login(
         email: record["email"].as_str().unwrap_or("").to_string(),
         verified: record["verified"].as_bool().unwrap_or(false),
         site_slug: None,
-        name: record["name"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+        name: record["name"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string()),
         avatar: avatar_url(pb, &record["id"], &record["avatar"]),
     };
 
@@ -266,8 +265,7 @@ pub async fn auth_login(
             if let Ok(sites_json) = serde_json::from_str::<serde_json::Value>(&sites_body) {
                 if let Some(items) = sites_json["items"].as_array() {
                     if let Some(first) = items.first() {
-                        user.site_slug =
-                            first["siteSlug"].as_str().map(|s| s.to_string());
+                        user.site_slug = first["siteSlug"].as_str().map(|s| s.to_string());
                     }
                 }
             }
@@ -284,10 +282,7 @@ pub async fn auth_login(
 }
 
 #[tauri::command]
-pub async fn auth_logout(
-    app: AppHandle,
-    state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn auth_logout(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
     clear_token(&app);
     *state.auth.lock().unwrap() = None;
     Ok(())
@@ -322,10 +317,7 @@ pub async fn auth_get_status(
         let client = reqwest::Client::new();
         if let Some(pb) = PB_BASE_URL {
             let res = client
-                .post(format!(
-                    "{}/api/collections/users/auth-refresh",
-                    pb
-                ))
+                .post(format!("{}/api/collections/users/auth-refresh", pb))
                 .header("Authorization", format!("Bearer {}", old_token))
                 .send()
                 .await;
@@ -360,10 +352,7 @@ pub async fn auth_get_status(
     if let Some(pb) = PB_BASE_URL {
         let client = reqwest::Client::new();
         if let Ok(resp) = client
-            .get(format!(
-                "{}/api/collections/users/records/{}",
-                pb, user_id
-            ))
+            .get(format!("{}/api/collections/users/records/{}", pb, user_id))
             .header("Authorization", format!("Bearer {}", token_for_profile))
             .send()
             .await
@@ -376,9 +365,7 @@ pub async fn auth_get_status(
                             .as_str()
                             .unwrap_or(&a.user.email)
                             .to_string();
-                        a.user.verified = record["verified"]
-                            .as_bool()
-                            .unwrap_or(a.user.verified);
+                        a.user.verified = record["verified"].as_bool().unwrap_or(a.user.verified);
                         a.user.name = record["name"]
                             .as_str()
                             .filter(|value| !value.is_empty())
@@ -438,10 +425,7 @@ pub async fn auth_request_verification(email: String) -> Result<(), String> {
     let pb = pb_url()?;
     let client = reqwest::Client::new();
     let res = client
-        .post(format!(
-            "{}/api/collections/users/request-verification",
-            pb
-        ))
+        .post(format!("{}/api/collections/users/request-verification", pb))
         .json(&serde_json::json!({ "email": email }))
         .send()
         .await
@@ -453,7 +437,6 @@ pub async fn auth_request_verification(email: String) -> Result<(), String> {
     Ok(())
 }
 
-
 #[tauri::command]
 pub fn auth_is_configured() -> bool {
     PB_BASE_URL.is_some()
@@ -462,11 +445,7 @@ pub fn auth_is_configured() -> bool {
 // ── Profile (PocketBase users) ─────────────────────────────
 
 /// Build the public file URL for a PocketBase avatar field value.
-fn avatar_url(
-    pb: &str,
-    id: &serde_json::Value,
-    avatar: &serde_json::Value,
-) -> Option<String> {
+fn avatar_url(pb: &str, id: &serde_json::Value, avatar: &serde_json::Value) -> Option<String> {
     let id = id.as_str()?;
     let file = avatar.as_str().filter(|s| !s.is_empty())?;
     Some(format!("{}/api/files/users/{}/{}", pb, id, file))
@@ -507,7 +486,9 @@ pub async fn profile_update(
     let mut form = reqwest::multipart::Form::new().text("name", name.clone());
 
     if let Some(file_path) = avatar_file_path {
-        let bytes = std::fs::read(&file_path).map_err(|e| format!("读取头像文件失败: {}", e))?;
+        let bytes = tokio::fs::read(&file_path)
+            .await
+            .map_err(|e| format!("读取头像文件失败: {}", e))?;
         let filename = std::path::Path::new(&file_path)
             .file_name()
             .and_then(|s| s.to_str())
@@ -545,85 +526,4 @@ pub async fn profile_update(
         auth.user.avatar = avatar_url(pb, &record["id"], &record["avatar"]);
     }
     Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_update_name(
-    name: String,
-    state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
-    let pb = pb_url()?;
-    let (token, uid) = current_auth(&state)?;
-    let client = reqwest::Client::new();
-    let res = client
-        .patch(format!("{}/api/collections/users/records/{}", pb, uid))
-        .header("Authorization", format!("Bearer {}", token))
-        .json(&serde_json::json!({ "name": name }))
-        .send()
-        .await
-        .map_err(|_| "网络连接失败，请检查网络".to_string())?;
-
-    let status = res.status().as_u16();
-    if status >= 400 {
-        let body = res.text().await.unwrap_or_default();
-        return Err(map_pb_error(status, &body));
-    }
-
-    {
-        let mut guard = state.auth.lock().unwrap();
-        if let Some(a) = guard.as_mut() {
-            a.user.name = if name.is_empty() { None } else { Some(name) };
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn profile_update_avatar(
-    file_path: String,
-    state: tauri::State<'_, AppState>,
-) -> Result<String, String> {
-    let pb = pb_url()?;
-    let (token, uid) = current_auth(&state)?;
-
-    let bytes = std::fs::read(&file_path).map_err(|e| format!("读取头像文件失败: {}", e))?;
-    let filename = std::path::Path::new(&file_path)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("avatar.png")
-        .to_string();
-    let mime = mime_from_filename(&filename);
-
-    let part = reqwest::multipart::Part::bytes(bytes)
-        .file_name(filename)
-        .mime_str(mime)
-        .map_err(|e| format!("构造上传数据失败: {}", e))?;
-    let form = reqwest::multipart::Form::new().part("avatar", part);
-
-    let client = reqwest::Client::new();
-    let res = client
-        .patch(format!("{}/api/collections/users/records/{}", pb, uid))
-        .header("Authorization", format!("Bearer {}", token))
-        .multipart(form)
-        .send()
-        .await
-        .map_err(|_| "网络连接失败，请检查网络".to_string())?;
-
-    let status = res.status().as_u16();
-    let body = res.text().await.unwrap_or_default();
-    if status >= 400 {
-        return Err(map_pb_error(status, &body));
-    }
-
-    let v: serde_json::Value =
-        serde_json::from_str(&body).map_err(|_| "解析响应失败".to_string())?;
-    let url = avatar_url(pb, &v["id"], &v["avatar"]).unwrap_or_default();
-
-    {
-        let mut guard = state.auth.lock().unwrap();
-        if let Some(a) = guard.as_mut() {
-            a.user.avatar = if url.is_empty() { None } else { Some(url.clone()) };
-        }
-    }
-    Ok(url)
 }

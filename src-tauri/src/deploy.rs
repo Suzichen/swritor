@@ -71,7 +71,11 @@ fn scan_dir(root: &Path) -> Result<Vec<FileEntry>, String> {
                     .to_string_lossy()
                     .replace('\\', "/");
                 let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-                out.push(FileEntry { rel, abs: path, size });
+                out.push(FileEntry {
+                    rel,
+                    abs: path,
+                    size,
+                });
             }
         }
     }
@@ -93,7 +97,10 @@ async fn sign_batch(
         .collect();
 
     let res = client
-        .post(format!("{}/deployments/{}/sign-upload", base, deployment_id))
+        .post(format!(
+            "{}/deployments/{}/sign-upload",
+            base, deployment_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&json!({ "files": files, "expiresInSec": URL_EXPIRES_SEC }))
         .send()
@@ -135,11 +142,7 @@ async fn upload_one(
             return Err("已取消部署".to_string());
         }
         attempt += 1;
-        let result = client
-            .put(url)
-            .body(bytes.clone())
-            .send()
-            .await;
+        let result = client.put(url).body(bytes.clone()).send().await;
         match result {
             Ok(resp) if resp.status().is_success() => return Ok(()),
             Ok(resp) => {
@@ -194,7 +197,10 @@ async fn sign_and_upload(
             let entry = entry.clone();
 
             set.spawn(async move {
-                let _permit = sem.acquire_owned().await.map_err(|_| "并发调度失败".to_string())?;
+                let _permit = sem
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| "并发调度失败".to_string())?;
                 if is_cancelled(&cancel) {
                     return Err("已取消部署".to_string());
                 }
@@ -347,13 +353,24 @@ pub async fn deploy_site(
         .as_str()
         .ok_or("响应缺少部署 ID")?
         .to_string();
-    let release_id = parsed["deployment"]["releaseId"].as_str().unwrap_or("").to_string();
+    let release_id = parsed["deployment"]["releaseId"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     emit_evt(&app, json!({ "type": "init", "releaseId": release_id }));
 
     // 3. Sign + upload all files
     let done = Arc::new(AtomicUsize::new(0));
     sign_and_upload(
-        &app, &client, base, &token, &deployment_id, &files, &cancel, &done, total_files,
+        &app,
+        &client,
+        base,
+        &token,
+        &deployment_id,
+        &files,
+        &cancel,
+        &done,
+        total_files,
     )
     .await?;
 
@@ -372,10 +389,7 @@ pub async fn deploy_site(
                 if round + 1 >= MAX_FINALIZE_ROUNDS {
                     return Err(format!("发布校验失败，仍有 {} 个文件缺失", missing.len()));
                 }
-                emit_evt(
-                    &app,
-                    json!({ "type": "retry", "missing": missing.len() }),
-                );
+                emit_evt(&app, json!({ "type": "retry", "missing": missing.len() }));
                 let missing_set: std::collections::HashSet<&str> =
                     missing.iter().map(|s| s.as_str()).collect();
                 let missing_entries: Vec<FileEntry> = files

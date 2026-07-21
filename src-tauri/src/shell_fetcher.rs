@@ -59,7 +59,10 @@ pub async fn ensure_shell_cache(app: &tauri::AppHandle) -> Result<PathBuf, Strin
     let mut archive = Archive::new(gz);
     let prefix = "package/dist/shell/";
 
-    for entry in archive.entries().map_err(|e| format!("读取 tar 失败: {e}"))? {
+    for entry in archive
+        .entries()
+        .map_err(|e| format!("读取 tar 失败: {e}"))?
+    {
         let mut entry = entry.map_err(|e| format!("读取 tar entry 失败: {e}"))?;
         let path = entry
             .path()

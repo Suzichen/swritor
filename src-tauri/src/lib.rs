@@ -66,8 +66,6 @@ pub fn run() {
             auth_request_verification,
             auth_is_configured,
             profile_update,
-            profile_update_name,
-            profile_update_avatar,
             site_create,
             sites_list,
             deploy_site,

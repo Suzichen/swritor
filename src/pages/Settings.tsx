@@ -178,12 +178,15 @@ export function Settings({ blogDir }: Props) {
       const content = serializeConfig(obj);
       await invoke("write_config", { blogDir, filename: "config.json", content });
 
-
       setPendingLogo(null);
       setPendingFavicon(null);
       setSnackMsg("保存成功");
       setSnackOpen(true);
       setTimeout(() => setSnackOpen(false), 2000);
+    } catch (e: unknown) {
+      setSnackMsg(`保存失败: ${String(e)}`);
+      setSnackOpen(true);
+      setTimeout(() => setSnackOpen(false), 3000);
     } finally {
       setSaving(false);
     }
