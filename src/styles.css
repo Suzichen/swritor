@@ -124,12 +124,123 @@ mdui-navigation-drawer::part(panel) {
   flex-direction: column;
 }
 
+mdui-navigation-drawer.app-sidebar {
+  width: 240px;
+  transition: width 180ms ease;
+}
+
+mdui-navigation-drawer.app-sidebar-collapsed {
+  width: 72px;
+}
+
+/* MDUI switches to mobile mode at 840px, but the app keeps the drawer
+   as a persistent rail and only changes its width at the narrower breakpoint. */
+@media (max-width: 839px) {
+  mdui-navigation-drawer.app-sidebar[mobile] {
+    right: auto;
+    width: 240px;
+    z-index: 1;
+  }
+
+  mdui-navigation-drawer.app-sidebar-collapsed[mobile] {
+    width: 72px;
+  }
+
+  mdui-navigation-drawer.app-sidebar[mobile]::part(panel) {
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
+    background-color: rgb(var(--mdui-color-surface));
+    box-shadow: none;
+  }
+
+  mdui-navigation-drawer.app-sidebar[mobile]::part(overlay) {
+    display: none;
+  }
+
+  .app-layout mdui-layout-main {
+    padding-left: 240px !important;
+  }
+
+  .app-layout-sidebar-collapsed mdui-layout-main {
+    padding-left: 72px !important;
+  }
+}
+
+.app-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 12px;
+}
+
+.app-sidebar-title {
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.app-sidebar-title h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.app-sidebar-title p {
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar mdui-list > mdui-tooltip {
+  display: block;
+  width: 100%;
+}
+
+.app-sidebar-collapsed mdui-list-item::part(container) {
+  justify-content: center;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.app-sidebar-collapsed mdui-list-item::part(body) {
+  display: none;
+  flex: 0 0 0;
+}
+
+.app-sidebar-collapsed mdui-list-item::part(icon) {
+  margin-right: 0;
+}
+
+.app-sidebar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding: 16px 16px 20px;
+}
+
+.app-sidebar-collapsed .app-sidebar-header,
+.app-sidebar-collapsed .app-sidebar-actions {
+  align-items: center;
+  justify-content: center;
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
+.app-sidebar-actions mdui-tooltip {
+  display: block;
+  width: 100%;
+}
+
 mdui-navigation-drawer.album-settings-drawer::part(panel) {
   width: min(480px, 92vw);
   max-width: 92vw;
 }
-
-
 
 mdui-layout-main {
   overflow-y: auto;

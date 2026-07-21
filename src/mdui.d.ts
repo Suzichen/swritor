@@ -96,6 +96,7 @@ declare module "react" {
       "mdui-tooltip": MduiBase & {
         content?: string;
         trigger?: string;
+        placement?: "auto" | "top-left" | "top-start" | "top" | "top-end" | "top-right" | "bottom-left" | "bottom-start" | "bottom" | "bottom-end" | "bottom-right" | "left-start" | "left" | "left-end" | "right-start" | "right" | "right-end";
         disabled?: boolean;
         open?: boolean;
       };
