@@ -99,6 +99,18 @@ declare module "react" {
         disabled?: boolean;
         open?: boolean;
       };
+      "mdui-tabs": MduiBase & {
+        value?: string;
+        variant?: "primary" | "secondary";
+        placement?: "top-start" | "top" | "top-end" | "bottom-start" | "bottom" | "bottom-end" | "left-start" | "left" | "left-end" | "right-start" | "right" | "right-end";
+        "full-width"?: boolean;
+      };
+      "mdui-tab": MduiBase & {
+        value?: string;
+        icon?: string;
+        inline?: boolean;
+      };
+      "mdui-tab-panel": MduiBase & { value?: string };
     }
   }
 }

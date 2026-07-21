@@ -24,11 +24,11 @@ interface Props {
 type SettingsSection = "profile" | "site" | "connections" | "advanced" | "app";
 
 const SETTINGS_SECTIONS: { value: SettingsSection; label: string; icon: string }[] = [
-  { value: "profile", label: "账户与站点", icon: "account_circle" },
-  { value: "site", label: "网站信息", icon: "web" },
-  { value: "connections", label: "链接展示", icon: "link" },
-  { value: "advanced", label: "发布选项", icon: "tune" },
-  { value: "app", label: "应用信息", icon: "info" },
+  { value: "profile", label: "账户", icon: "account_circle" },
+  { value: "site", label: "网站", icon: "web" },
+  { value: "connections", label: "链接", icon: "link" },
+  { value: "advanced", label: "发布", icon: "tune" },
+  { value: "app", label: "应用", icon: "info" },
 ];
 
 export function Settings({ blogDir }: Props) {
@@ -224,37 +224,35 @@ export function Settings({ blogDir }: Props) {
   return (
     <div className="settings-page">
       <header className="settings-header">
-        <div>
-          <h1>设置</h1>
-          <p>管理博客资料、展示内容与发布方式</p>
-        </div>
+        <h1>设置</h1>
         <mdui-button
           variant="filled"
           icon="save"
           loading={saving || undefined}
           onClick={handleSave}
         >
-          保存更改
+          保存全部
         </mdui-button>
       </header>
 
-      <div className="settings-layout">
-        <nav className="settings-nav" aria-label="设置分类">
+      <main className="settings-layout">
+        <mdui-tabs
+          class="settings-tabs"
+          value={activeSection}
+          placement="top-start"
+          variant="secondary"
+          onChange={(event) => {
+            const tabs = event.currentTarget as HTMLElement & { value: SettingsSection };
+            setActiveSection(tabs.value);
+          }}
+        >
           {SETTINGS_SECTIONS.map((section) => (
-            <button
-              key={section.value}
-              type="button"
-              className={activeSection === section.value ? "active" : ""}
-              onClick={() => setActiveSection(section.value)}
-            >
-              <mdui-icon name={section.icon} />
-              <span>{section.label}</span>
-            </button>
+            <mdui-tab key={section.value} value={section.value} icon={section.icon} inline>
+              {section.label}
+            </mdui-tab>
           ))}
-        </nav>
 
-        <main className="settings-content">
-          <div hidden={activeSection !== "profile"}>
+          <mdui-tab-panel class="settings-tab-panel" slot="panel" value="profile">
             <SettingsPanel
               icon="account_circle"
               title="账户与站点"
@@ -272,15 +270,15 @@ export function Settings({ blogDir }: Props) {
                 }}
               />
             </SettingsPanel>
-          </div>
+          </mdui-tab-panel>
 
-          <div className="settings-panel-stack" hidden={activeSection !== "site"}>
-              <SettingsPanel
-                icon="article"
-                title="基本信息"
-                description="这些内容会出现在网站首页和页面元数据中。"
-              >
-                <div className="settings-fields settings-fields-two">
+          <mdui-tab-panel class="settings-tab-panel" slot="panel" value="site">
+            <SettingsPanel
+              icon="article"
+              title="基本信息"
+              description="这些内容会出现在网站首页和页面元数据中。"
+            >
+              <div className="settings-fields settings-fields-two">
                   <mdui-text-field
                     variant="outlined"
                     label="网站标题"
@@ -315,15 +313,15 @@ export function Settings({ blogDir }: Props) {
                     <mdui-menu-item value="zh-CN">简体中文</mdui-menu-item>
                     <mdui-menu-item value="ja">日本語</mdui-menu-item>
                   </mdui-select>
-                </div>
-              </SettingsPanel>
+              </div>
+            </SettingsPanel>
 
-              <SettingsPanel
-                icon="palette"
-                title="品牌图标"
-                description="上传博客 Logo 和浏览器标签页图标。"
-              >
-                <div className="settings-image-list">
+            <SettingsPanel
+              icon="palette"
+              title="品牌图标"
+              description="上传博客 Logo 和浏览器标签页图标。"
+            >
+              <div className="settings-image-list">
                   <ImageField
                     label="Logo"
                     description="建议使用透明背景的 PNG 或 SVG"
@@ -341,20 +339,20 @@ export function Settings({ blogDir }: Props) {
                     onSelect={() => selectImage("favicon")}
                     size="h-12 w-12"
                   />
-                </div>
-              </SettingsPanel>
-          </div>
+              </div>
+            </SettingsPanel>
+          </mdui-tab-panel>
 
-          <div className="settings-panel-stack" hidden={activeSection !== "connections"}>
-              <SettingsPanel icon="link" title="友情链接" description="在博客中展示你推荐的网站。">
-                <SettingToggle
+          <mdui-tab-panel class="settings-tab-panel" slot="panel" value="connections">
+            <SettingsPanel icon="link" title="友情链接" description="在博客中展示你推荐的网站。">
+              <SettingToggle
                   title="显示友情链接"
                   description="关闭后保留已填写的链接，但不在网站中展示。"
                   checked={linksEnabled}
                   onChange={setLinksEnabled}
                 />
-                {linksEnabled && (
-                  <div className="settings-repeat-list">
+              {linksEnabled && (
+                <div className="settings-repeat-list">
                     {linkItems.length === 0 && <EmptySetting text="还没有友情链接" />}
                     {linkItems.map((item, index) => (
                       <div key={index} className="settings-repeat-row">
@@ -394,19 +392,19 @@ export function Settings({ blogDir }: Props) {
                     >
                       添加链接
                     </mdui-button>
-                  </div>
-                )}
-              </SettingsPanel>
+                </div>
+              )}
+            </SettingsPanel>
 
-              <SettingsPanel icon="share" title="社交链接" description="让读者在其他平台找到你。">
-                <SettingToggle
+            <SettingsPanel icon="share" title="社交链接" description="让读者在其他平台找到你。">
+              <SettingToggle
                   title="显示社交链接"
                   description="关闭后保留平台配置，但不在网站中展示。"
                   checked={socialEnabled}
                   onChange={setSocialEnabled}
                 />
-                {socialEnabled && (
-                  <div className="settings-repeat-list">
+              {socialEnabled && (
+                <div className="settings-repeat-list">
                     {socialItems.length === 0 && <EmptySetting text="还没有社交链接" />}
                     {socialItems.map((item, index) => (
                       <SocialLinkRow
@@ -427,12 +425,12 @@ export function Settings({ blogDir }: Props) {
                     >
                       添加社交链接
                     </mdui-button>
-                  </div>
-                )}
-              </SettingsPanel>
-          </div>
+                </div>
+              )}
+            </SettingsPanel>
+          </mdui-tab-panel>
 
-          <div hidden={activeSection !== "advanced"}>
+          <mdui-tab-panel class="settings-tab-panel" slot="panel" value="advanced">
             <SettingsPanel
               icon="rocket_launch"
               title="发布选项"
@@ -478,9 +476,9 @@ export function Settings({ blogDir }: Props) {
                 />
               </div>
             </SettingsPanel>
-          </div>
+          </mdui-tab-panel>
 
-          <div hidden={activeSection !== "app"}>
+          <mdui-tab-panel class="settings-tab-panel" slot="panel" value="app">
             <SettingsPanel icon="info" title="应用信息" description="查看当前环境与博客依赖版本。">
               <div className="settings-info-list">
                 <InfoRow
@@ -505,9 +503,9 @@ export function Settings({ blogDir }: Props) {
                 </mdui-button>
               </div>
             </SettingsPanel>
-          </div>
-        </main>
-      </div>
+          </mdui-tab-panel>
+        </mdui-tabs>
+      </main>
 
       <mdui-snackbar open={snackOpen || undefined} placement="top">
         {snackMsg}

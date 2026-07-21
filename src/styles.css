@@ -195,9 +195,9 @@ mdui-dialog.wide-dialog::part(action) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  min-height: 88px;
-  padding: 18px clamp(24px, 4vw, 48px);
+  gap: 16px;
+  min-height: 64px;
+  padding: 8px clamp(24px, 4vw, 48px);
   background: color-mix(in srgb, var(--mdui-color-surface) 92%, transparent);
   border-bottom: 1px solid var(--mdui-color-outline-variant);
   backdrop-filter: blur(12px);
@@ -205,7 +205,7 @@ mdui-dialog.wide-dialog::part(action) {
 
 .settings-header h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 500;
   line-height: 1.25;
 }
@@ -218,67 +218,27 @@ mdui-dialog.wide-dialog::part(action) {
 }
 
 .settings-layout {
-  display: grid;
-  grid-template-columns: 208px minmax(0, 760px);
-  gap: clamp(28px, 4vw, 56px);
-  justify-content: center;
-  padding: 32px clamp(24px, 4vw, 48px) 64px;
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 8px clamp(24px, 4vw, 48px) 64px;
 }
 
-.settings-nav {
-  position: sticky;
-  top: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-self: start;
-}
-
-.settings-nav button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 48px;
-  padding: 0 16px;
-  color: var(--mdui-color-on-surface-variant);
-  background: transparent;
-  border: 0;
-  border-radius: 24px;
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 120ms ease, color 120ms ease;
-}
-
-.settings-nav button:hover {
-  background: var(--mdui-color-surface-container);
-}
-
-.settings-nav button.active {
-  color: var(--mdui-color-on-secondary-container);
-  font-weight: 500;
-  background: var(--mdui-color-secondary-container);
-}
-
-.settings-nav mdui-icon {
-  font-size: 21px;
-}
-
-.settings-content,
-.settings-panel-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+mdui-tabs.settings-tabs {
+  display: block;
   min-width: 0;
 }
 
-.settings-content > [hidden],
-.settings-panel-stack[hidden] {
-  display: none;
+mdui-tabs.settings-tabs mdui-tab::part(icon) {
+  margin-right: 8px;
 }
 
-.settings-content > div:not(.settings-panel-stack) {
+mdui-tab-panel.settings-tab-panel {
   min-width: 0;
+  padding-top: 24px;
+}
+
+mdui-tab-panel.settings-tab-panel > .settings-panel + .settings-panel {
+  margin-top: 20px;
 }
 
 mdui-card.settings-panel {
@@ -543,50 +503,20 @@ mdui-card.settings-panel {
   padding-top: 18px;
 }
 
-@media (max-width: 860px) {
-  .settings-layout {
-    grid-template-columns: minmax(0, 760px);
-    gap: 20px;
-  }
 
-  .settings-nav {
-    position: static;
-    flex-direction: row;
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
-  .settings-nav button {
-    flex: 0 0 auto;
-    width: auto;
-    padding: 0 14px;
-  }
-}
 
 @media (max-width: 600px) {
   .settings-header {
-    min-height: 76px;
-    padding: 14px 16px;
-  }
-
-  .settings-header p,
-  .settings-nav button span {
-    display: none;
+    min-height: 60px;
+    padding: 6px 16px;
   }
 
   .settings-layout {
-    padding: 20px 12px 48px;
+    padding: 6px 12px 48px;
   }
 
-  .settings-nav {
-    justify-content: space-between;
-  }
-
-  .settings-nav button {
-    justify-content: center;
-    min-width: 48px;
-    padding: 0 12px;
+  mdui-tab-panel.settings-tab-panel {
+    padding-top: 16px;
   }
 
   .settings-panel-heading,
