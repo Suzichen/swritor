@@ -3,6 +3,7 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)
 
 ## [Unreleased]
+重构设置页面。提升UI可用性和稳定性
 
 ## [v0.2.2] - 2026-07-08
 
