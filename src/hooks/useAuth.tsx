@@ -32,6 +32,7 @@ interface AuthContextValue {
   requestVerification: (email: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
   // Profile
+  updateProfile: (name: string, avatarFilePath?: string | null) => Promise<void>;
   updateName: (name: string) => Promise<void>;
   updateAvatar: (filePath: string) => Promise<string>;
   // Sites
@@ -87,6 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Profile ──────────────────────────────────────────────
 
+  const updateProfile = async (name: string, avatarFilePath?: string | null): Promise<void> => {
+    await invoke<void>("profile_update", { name, avatarFilePath: avatarFilePath ?? null });
+    await refreshStatus();
+  };
+
   const updateName = async (name: string): Promise<void> => {
     await invoke<void>("profile_update_name", { name });
     await refreshStatus();
@@ -124,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         requestVerification,
         refreshStatus,
+        updateProfile,
         updateName,
         updateAvatar,
         createSite,

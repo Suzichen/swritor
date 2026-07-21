@@ -12,9 +12,16 @@ import { parseConfig } from "../../utils/configParser";
 const PAGES_ROOT_DOMAIN = "spage.me";
 const MAX_SITES = 2;
 
+interface SaveProfileOptions {
+  persistDefaults?: boolean;
+  notify?: boolean;
+  /** Create the slug entered in the first-time setup form before closing. */
+  siteSlug?: string;
+}
+
 export interface PersonalSettingsFormHandle {
   /** Save nickname + avatar. Returns true on success. */
-  saveProfile: () => Promise<boolean>;
+  saveProfile: (options?: SaveProfileOptions) => Promise<boolean>;
 }
 
 interface Props {
@@ -27,17 +34,17 @@ interface Props {
   onSaved?: () => void;
   /** Called to surface a transient message (used by Settings snackbar). */
   onNotify?: (msg: string) => void;
+  onReadyChange?: (ready: boolean) => void;
 }
 
 
 
 export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props>(
-  function PersonalSettingsForm({ blogDir, mode, showProfileSaveButton, onSaved, onNotify }, ref) {
+  function PersonalSettingsForm({ blogDir, mode, showProfileSaveButton, onSaved, onNotify, onReadyChange }, ref) {
     const {
       user,
       isLoggedIn,
-      updateName,
-      updateAvatar,
+      updateProfile,
       createSite,
       listSites,
     } = useAuth();
@@ -46,10 +53,13 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
 
     // Profile fields
     const [name, setName] = useState("");
+    const [nameEdited, setNameEdited] = useState(false);
+    const [configAuthor, setConfigAuthor] = useState("");
     const [configLogo, setConfigLogo] = useState("/logo.png");
     const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
     const [savingProfile, setSavingProfile] = useState(false);
     const [profileError, setProfileError] = useState("");
+    const [profileReady, setProfileReady] = useState(false);
 
     // Sites
     const [sites, setSites] = useState<SiteInfo[]>([]);
@@ -79,10 +89,14 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
           });
           const parsed = parseConfig(raw);
           if (cancelled) return;
+          const fallbackAuthor = parsed.author ?? "";
+          setConfigAuthor(fallbackAuthor);
           setConfigLogo(parsed.logo ?? "/logo.png");
-          setName((prev) => prev || user?.name || parsed.author || "");
+          if (!nameEdited) setName(user?.name || fallbackAuthor);
+          setProfileReady(true);
         } catch {
-          if (!cancelled) setName((prev) => prev || user?.name || "");
+          if (!cancelled && !nameEdited) setName(user?.name || "");
+          if (!cancelled) setProfileReady(true);
         }
       })();
       reloadSites();
@@ -91,6 +105,14 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [blogDir]);
+
+    useEffect(() => {
+      if (!nameEdited) setName(user?.name || configAuthor);
+    }, [configAuthor, nameEdited, user?.name]);
+
+    useEffect(() => {
+      onReadyChange?.(profileReady);
+    }, [onReadyChange, profileReady]);
 
     const notify = (msg: string) => onNotify?.(msg);
 
@@ -107,19 +129,36 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
     };
 
     // ── Profile save (exposed to dialog via ref) ───────────
-    const saveProfile = useCallback(async (): Promise<boolean> => {
+    const saveProfile = useCallback(async (options: SaveProfileOptions = {}): Promise<boolean> => {
+      const {
+        persistDefaults = false,
+        notify: shouldNotify = true,
+        siteSlug: requestedSiteSlug,
+      } = options;
+      if (!profileReady) {
+        setProfileError("个人资料仍在加载，请稍后再试");
+        return false;
+      }
       setProfileError("");
+      setSiteError("");
       setSavingProfile(true);
       try {
         const trimmed = name.trim();
-        if (trimmed !== (user?.name ?? "")) {
-          await updateName(trimmed);
+        const slug = (requestedSiteSlug ?? (persistDefaults ? slugInput : ""))
+          .trim()
+          .toLowerCase();
+        const avatarPath = pendingAvatar
+          ?? (persistDefaults && !user?.avatar ? `${blogDir}/public${configLogo}` : null);
+        if (trimmed !== (user?.name ?? "") || avatarPath) {
+          await updateProfile(trimmed, avatarPath);
+          if (avatarPath) setPendingAvatar(null);
         }
-        if (pendingAvatar) {
-          await updateAvatar(pendingAvatar);
-          setPendingAvatar(null);
+        if (slug) {
+          await createSite(slug);
+          await reloadSites();
+          setSlugInput("");
         }
-        notify("个人资料已保存");
+        if (shouldNotify) notify(slug ? "个人资料和博客网址已保存" : "个人资料已保存");
         onSaved?.();
         return true;
       } catch (e: any) {
@@ -129,7 +168,18 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
         setSavingProfile(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [name, pendingAvatar, user, updateName, updateAvatar]);
+    }, [
+      blogDir,
+      configLogo,
+      createSite,
+      name,
+      pendingAvatar,
+      profileReady,
+      reloadSites,
+      slugInput,
+      updateProfile,
+      user,
+    ]);
 
     useImperativeHandle(ref, () => ({ saveProfile }), [saveProfile]);
 
@@ -158,23 +208,34 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
 
 
     if (!isLoggedIn) {
-      return <p className="text-sm text-gray-500">登录后可设置昵称、头像与博客网址。</p>;
+      return (
+        <div className="settings-login-required">
+          <mdui-icon name="lock" />
+          <div>
+            <p>需要登录</p>
+            <span>登录后可设置昵称、头像与博客网址。</span>
+          </div>
+        </div>
+      );
     }
 
     return (
-      <div className="space-y-6">
-        {/* 昵称 + 头像 */}
-        <div className="space-y-4">
+      <div className="personal-settings-form">
+        <div className="personal-settings-profile">
           <mdui-text-field
             variant="outlined"
             label="用户昵称"
             placeholder="请输入用户名"
+            helper="显示在博客作者资料中"
             value={name}
-            onInput={(e: any) => setName(e.target.value)}
+            onInput={(e: any) => {
+              setNameEdited(true);
+              setName(e.target.value);
+            }}
           />
 
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-gray-100 border flex items-center justify-center overflow-hidden shrink-0">
+          <div className="personal-avatar-row">
+            <div className="personal-avatar-preview">
               <img
                 src={avatarSrc()}
                 alt="头像"
@@ -184,13 +245,13 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
                 }}
               />
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">头像</p>
-              <p className="text-xs text-gray-500">
+            <div className="personal-avatar-copy">
+              <p>头像</p>
+              <span>
                 {pendingAvatar ? pendingAvatar.split(/[/\\]/).pop() : "默认使用博客 Logo"}
-              </p>
+              </span>
             </div>
-            <mdui-button variant="tonal" onClick={selectAvatar}>
+            <mdui-button variant="tonal" icon="upload" onClick={selectAvatar}>
               更换
             </mdui-button>
           </div>
@@ -204,7 +265,8 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
               <mdui-button
                 variant="tonal"
                 loading={savingProfile || undefined}
-                onClick={saveProfile}
+                disabled={!profileReady || undefined}
+                onClick={() => saveProfile()}
               >
                 保存个人资料
               </mdui-button>
@@ -212,39 +274,36 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
           )}
         </div>
 
-        <mdui-divider />
-
-        {/* 博客网址 / 站点 */}
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-gray-700">博客网址</p>
+        <div className="personal-settings-sites">
+          <div className="personal-settings-subheading">
+            <p>博客网址</p>
+            <span>申请专属地址，用于一键部署到 spage.me。</span>
+          </div>
 
           {/* 已有站点列表 */}
           {sites.map((site) => (
-            <div key={site.siteSlug} className="flex items-center gap-2">
-              <mdui-text-field
-                variant="outlined"
-                label="博客网址"
-                value={site.siteSlug}
-                disabled
-                class="flex-1"
-              />
-              <span className="text-sm text-gray-500 shrink-0">.{PAGES_ROOT_DOMAIN}</span>
-            </div>
+            <mdui-text-field
+              key={site.siteSlug}
+              variant="outlined"
+              label="已申请的网址"
+              value={`${site.siteSlug}.${PAGES_ROOT_DOMAIN}`}
+              disabled
+            />
           ))}
 
           {/* 新申请输入框（未达上限时显示） */}
           {sites.length < MAX_SITES && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <mdui-text-field
-                  variant="outlined"
-                  label={sites.length === 0 ? "博客网址" : "再申请一个网址"}
-                  placeholder="例如 my-blog"
-                  value={slugInput}
-                  onInput={(e: any) => setSlugInput(e.target.value)}
-                  class="flex-1"
-                />
-                <span className="text-sm text-gray-500 shrink-0">.{PAGES_ROOT_DOMAIN}</span>
+            <div className={`personal-site-apply${mode === "dialog" ? " personal-site-apply-dialog" : ""}`}>
+              <mdui-text-field
+                variant="outlined"
+                label={sites.length === 0 ? "申请博客网址" : "再申请一个网址"}
+                placeholder="my-blog"
+                suffix={`.${PAGES_ROOT_DOMAIN}`}
+                helper="3–32 位小写字母、数字或连字符；申请后不可修改"
+                value={slugInput}
+                onInput={(e: any) => setSlugInput(e.target.value)}
+              />
+              {mode === "settings" && (
                 <mdui-button
                   variant="filled"
                   loading={applying || undefined}
@@ -252,10 +311,7 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
                 >
                   申请
                 </mdui-button>
-              </div>
-              <p className="text-xs text-gray-400">
-                只能包含小写字母、数字和连字符（3-32 位），申请后不可修改。
-              </p>
+              )}
             </div>
           )}
 
@@ -263,10 +319,6 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
             <p className="text-sm" style={{ color: "#dc2626" }}>{siteError}</p>
           )}
 
-          <p className="flex items-center gap-1 text-xs text-gray-400">
-            <mdui-icon name="info" style={{ fontSize: 14 }} />
-            申请后可一键部署到 spage.me。
-          </p>
         </div>
       </div>
     );

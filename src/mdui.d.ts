@@ -51,6 +51,8 @@ declare module "react" {
         value?: string;
         placeholder?: string;
         helper?: string;
+        suffix?: string;
+        icon?: string;
         type?: string;
         rows?: number | string;
         disabled?: boolean;

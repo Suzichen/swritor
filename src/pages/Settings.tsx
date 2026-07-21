@@ -7,7 +7,10 @@ import {
   SocialLinkItem,
 } from "../utils/configParser";
 import { COMMON_TIMEZONES, getTimezoneOffset } from "../utils/timezone";
-import { PersonalSettingsForm } from "../components/settings/PersonalSettingsForm";
+import {
+  PersonalSettingsForm,
+  type PersonalSettingsFormHandle,
+} from "../components/settings/PersonalSettingsForm";
 
 const BUILTIN_PLATFORMS = [
   "github", "rss", "x", "twitter", "weibo", "zhihu",
@@ -18,10 +21,19 @@ interface Props {
   blogDir: string;
 }
 
+type SettingsSection = "profile" | "site" | "connections" | "advanced" | "app";
 
+const SETTINGS_SECTIONS: { value: SettingsSection; label: string; icon: string }[] = [
+  { value: "profile", label: "账户与站点", icon: "account_circle" },
+  { value: "site", label: "网站信息", icon: "web" },
+  { value: "connections", label: "链接展示", icon: "link" },
+  { value: "advanced", label: "发布选项", icon: "tune" },
+  { value: "app", label: "应用信息", icon: "info" },
+];
 
 export function Settings({ blogDir }: Props) {
   const configRef = useRef<any>(null);
+  const profileFormRef = useRef<PersonalSettingsFormHandle>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -44,8 +56,7 @@ export function Settings({ blogDir }: Props) {
   const [saving, setSaving] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState("保存成功");
-
-
+  const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
 
   // Version
   const [shellVersion, setShellVersion] = useState<string | null>(null);
@@ -108,6 +119,16 @@ export function Settings({ blogDir }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const profileSaved = await profileFormRef.current?.saveProfile({
+        persistDefaults: false,
+        notify: false,
+      });
+      if (profileSaved === false) {
+        setSnackMsg("个人资料保存失败，请检查表单提示");
+        setSnackOpen(true);
+        setTimeout(() => setSnackOpen(false), 3000);
+        return;
+      }
       if (pendingLogo) {
         const ext = pendingLogo.split(".").pop() || "png";
         const filename = `logo.${ext}`;
@@ -198,271 +219,293 @@ export function Settings({ blogDir }: Props) {
   };
 
   return (
-    <div className="p-6 space-y-8 max-w-3xl">
-      {/* Header - sticky */}
-      <div className="settings-header flex items-center justify-between sticky top-0 z-10 py-4 -mx-6 px-6 bg-[--mdui-color-surface] border-b border-gray-200/60 backdrop-blur">
-        <h2 className="text-xl font-medium">网站设置</h2>
-        <mdui-button variant="tonal" loading={saving || undefined} onClick={handleSave}>
-          保存
+    <div className="settings-page">
+      <header className="settings-header">
+        <div>
+          <h1>设置</h1>
+          <p>管理博客资料、展示内容与发布方式</p>
+        </div>
+        <mdui-button
+          variant="filled"
+          icon="save"
+          loading={saving || undefined}
+          onClick={handleSave}
+        >
+          保存更改
         </mdui-button>
+      </header>
+
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="设置分类">
+          {SETTINGS_SECTIONS.map((section) => (
+            <button
+              key={section.value}
+              type="button"
+              className={activeSection === section.value ? "active" : ""}
+              onClick={() => setActiveSection(section.value)}
+            >
+              <mdui-icon name={section.icon} />
+              <span>{section.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <main className="settings-content">
+          <div hidden={activeSection !== "profile"}>
+            <SettingsPanel
+              icon="account_circle"
+              title="账户与站点"
+              description="设置公开显示的个人资料，并管理 spage.me 博客网址。"
+            >
+              <PersonalSettingsForm
+                ref={profileFormRef}
+                blogDir={blogDir}
+                mode="settings"
+                showProfileSaveButton={false}
+                onNotify={(msg) => {
+                  setSnackMsg(msg);
+                  setSnackOpen(true);
+                  setTimeout(() => setSnackOpen(false), 2000);
+                }}
+              />
+            </SettingsPanel>
+          </div>
+
+          <div className="settings-panel-stack" hidden={activeSection !== "site"}>
+              <SettingsPanel
+                icon="article"
+                title="基本信息"
+                description="这些内容会出现在网站首页和页面元数据中。"
+              >
+                <div className="settings-fields settings-fields-two">
+                  <mdui-text-field
+                    variant="outlined"
+                    label="网站标题"
+                    helper="博客的主标题"
+                    value={title}
+                    onInput={(e: any) => setTitle(e.target.value)}
+                    required
+                  />
+                  <mdui-text-field
+                    variant="outlined"
+                    label="作者"
+                    helper="文章默认署名"
+                    value={author}
+                    onInput={(e: any) => setAuthor(e.target.value)}
+                  />
+                  <mdui-text-field
+                    class="settings-field-wide"
+                    variant="outlined"
+                    label="网站描述"
+                    helper="用于搜索摘要和社交分享"
+                    value={description}
+                    onInput={(e: any) => setDescription(e.target.value)}
+                    rows={3}
+                  />
+                  <mdui-select
+                    variant="outlined"
+                    label="网站语言"
+                    value={language}
+                    onChange={(e: any) => setLanguage(e.target.value)}
+                  >
+                    <mdui-menu-item value="en">English</mdui-menu-item>
+                    <mdui-menu-item value="zh-CN">简体中文</mdui-menu-item>
+                    <mdui-menu-item value="ja">日本語</mdui-menu-item>
+                  </mdui-select>
+                </div>
+              </SettingsPanel>
+
+              <SettingsPanel
+                icon="palette"
+                title="品牌图标"
+                description="上传博客 Logo 和浏览器标签页图标。"
+              >
+                <div className="settings-image-list">
+                  <ImageField
+                    label="Logo"
+                    description="建议使用透明背景的 PNG 或 SVG"
+                    src={getImageSrc(logo, pendingLogo)}
+                    path={pendingLogo ? pendingLogo.split(/[/\\]/).pop()! : logo}
+                    onSelect={() => selectImage("logo")}
+                    size="h-12 w-28"
+                  />
+                  <mdui-divider />
+                  <ImageField
+                    label="Favicon"
+                    description="建议使用正方形 ICO 或 PNG"
+                    src={getImageSrc(favicon, pendingFavicon)}
+                    path={pendingFavicon ? pendingFavicon.split(/[/\\]/).pop()! : favicon}
+                    onSelect={() => selectImage("favicon")}
+                    size="h-12 w-12"
+                  />
+                </div>
+              </SettingsPanel>
+          </div>
+
+          <div className="settings-panel-stack" hidden={activeSection !== "connections"}>
+              <SettingsPanel icon="link" title="友情链接" description="在博客中展示你推荐的网站。">
+                <SettingToggle
+                  title="显示友情链接"
+                  description="关闭后保留已填写的链接，但不在网站中展示。"
+                  checked={linksEnabled}
+                  onChange={setLinksEnabled}
+                />
+                {linksEnabled && (
+                  <div className="settings-repeat-list">
+                    {linkItems.length === 0 && <EmptySetting text="还没有友情链接" />}
+                    {linkItems.map((item, index) => (
+                      <div key={index} className="settings-repeat-row">
+                        <mdui-text-field
+                          variant="outlined"
+                          label="名称"
+                          value={item.name}
+                          onInput={(e: any) => {
+                            const nextItems = [...linkItems];
+                            nextItems[index] = { ...nextItems[index], name: e.target.value };
+                            setLinkItems(nextItems);
+                          }}
+                        />
+                        <mdui-text-field
+                          variant="outlined"
+                          type="url"
+                          label="网址"
+                          placeholder="https://example.com"
+                          value={item.url}
+                          onInput={(e: any) => {
+                            const nextItems = [...linkItems];
+                            nextItems[index] = { ...nextItems[index], url: e.target.value };
+                            setLinkItems(nextItems);
+                          }}
+                        />
+                        <mdui-button-icon
+                          icon="delete"
+                          aria-label="删除友情链接"
+                          onClick={() => setLinkItems(linkItems.filter((_, itemIndex) => itemIndex !== index))}
+                        />
+                      </div>
+                    ))}
+                    <mdui-button
+                      variant="tonal"
+                      icon="add"
+                      onClick={() => setLinkItems([...linkItems, { name: "", url: "" }])}
+                    >
+                      添加链接
+                    </mdui-button>
+                  </div>
+                )}
+              </SettingsPanel>
+
+              <SettingsPanel icon="share" title="社交链接" description="让读者在其他平台找到你。">
+                <SettingToggle
+                  title="显示社交链接"
+                  description="关闭后保留平台配置，但不在网站中展示。"
+                  checked={socialEnabled}
+                  onChange={setSocialEnabled}
+                />
+                {socialEnabled && (
+                  <div className="settings-repeat-list">
+                    {socialItems.length === 0 && <EmptySetting text="还没有社交链接" />}
+                    {socialItems.map((item, index) => (
+                      <SocialLinkRow
+                        key={index}
+                        item={item}
+                        onChange={(updated) => {
+                          const nextItems = [...socialItems];
+                          nextItems[index] = updated;
+                          setSocialItems(nextItems);
+                        }}
+                        onDelete={() => setSocialItems(socialItems.filter((_, itemIndex) => itemIndex !== index))}
+                      />
+                    ))}
+                    <mdui-button
+                      variant="tonal"
+                      icon="add"
+                      onClick={() => setSocialItems([...socialItems, { platform: "github", url: "" }])}
+                    >
+                      添加社交链接
+                    </mdui-button>
+                  </div>
+                )}
+              </SettingsPanel>
+          </div>
+
+          <div hidden={activeSection !== "advanced"}>
+            <SettingsPanel
+              icon="rocket_launch"
+              title="发布选项"
+              description="配置正式环境地址、时区与子目录部署路径。"
+            >
+              <div className="settings-fields">
+                <SettingToggle
+                  title="使用自定义网站 URL"
+                  description="用于生成规范链接、站点地图和分享地址。"
+                  checked={siteUrlEnabled}
+                  onChange={setSiteUrlEnabled}
+                />
+                {siteUrlEnabled && (
+                  <mdui-text-field
+                    variant="outlined"
+                    label="网站 URL"
+                    type="url"
+                    value={siteUrl}
+                    placeholder="https://example.com"
+                    helper="请输入包含协议的完整公开地址"
+                    onInput={(e: any) => setSiteUrl(e.target.value)}
+                  />
+                )}
+                <mdui-select
+                  variant="outlined"
+                  label="时区"
+                  value={timezone}
+                  onChange={(e: any) => setTimezone(e.target.value)}
+                >
+                  {COMMON_TIMEZONES.map((tz) => (
+                    <mdui-menu-item key={tz} value={tz}>
+                      {tz} (UTC{getTimezoneOffset(tz)})
+                    </mdui-menu-item>
+                  ))}
+                </mdui-select>
+                <mdui-text-field
+                  variant="outlined"
+                  label="Base Path"
+                  value={basePath}
+                  placeholder="/blog"
+                  helper="仅在部署到域名子目录时填写，例如 /blog"
+                  onInput={(e: any) => setBasePath(e.target.value)}
+                />
+              </div>
+            </SettingsPanel>
+          </div>
+
+          <div hidden={activeSection !== "app"}>
+            <SettingsPanel icon="info" title="应用信息" description="查看当前环境与博客依赖版本。">
+              <div className="settings-info-list">
+                <InfoRow
+                  label="博客目录"
+                  value={blogDir}
+                  action={<mdui-button variant="text" icon="folder_open" onClick={() => invoke("open_in_explorer", { path: blogDir })}>打开</mdui-button>}
+                />
+                <mdui-divider />
+                <InfoRow
+                  label="@s-page/core"
+                  value={shellVersion ?? "未缓存"}
+                  action={<mdui-button variant="text" loading={updating || undefined} onClick={handleUpdateShell}>检查更新</mdui-button>}
+                />
+                <mdui-divider />
+                <InfoRow label="@s-page/engine" value={engineVersion || "未知"} />
+                <mdui-divider />
+                <InfoRow label="模板版本" value={templateVersion || "未知"} />
+              </div>
+              <div className="settings-panel-actions">
+                <mdui-button variant="tonal" icon="content_copy" onClick={handleCopyEnv}>
+                  复制环境信息
+                </mdui-button>
+              </div>
+            </SettingsPanel>
+          </div>
+        </main>
       </div>
 
-      {/* 个人设置 */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-medium">个人设置</h2>
-        <PersonalSettingsForm
-          blogDir={blogDir}
-          mode="settings"
-          onNotify={(msg) => {
-            setSnackMsg(msg);
-            setSnackOpen(true);
-            setTimeout(() => setSnackOpen(false), 2000);
-          }}
-        />
-      </section>
-
-      <mdui-divider />
-
-      {/* 基本设置 */}
-      <section className="space-y-4">
-        <mdui-text-field
-          variant="outlined"
-          label="网站标题"
-          value={title}
-          onInput={(e: any) => setTitle(e.target.value)}
-          required
-        />
-        <mdui-text-field
-          variant="outlined"
-          label="网站描述"
-          value={description}
-          onInput={(e: any) => setDescription(e.target.value)}
-          rows={3}
-        />
-        <mdui-text-field
-          variant="outlined"
-          label="作者"
-          value={author}
-          onInput={(e: any) => setAuthor(e.target.value)}
-        />
-        <mdui-select
-          variant="outlined"
-          label="语言"
-          value={language}
-          onChange={(e: any) => setLanguage(e.target.value)}
-        >
-          <mdui-menu-item value="en">English</mdui-menu-item>
-          <mdui-menu-item value="zh-CN">中文</mdui-menu-item>
-          <mdui-menu-item value="ja">日本語</mdui-menu-item>
-        </mdui-select>
-      </section>
-
-      {/* Logo & Favicon */}
-      <section className="space-y-4">
-        <h3 className="text-base font-medium text-gray-700">图标</h3>
-        <ImageField
-          label="Logo"
-          src={getImageSrc(logo, pendingLogo)}
-          path={pendingLogo ? pendingLogo.split(/[/\\]/).pop()! : logo}
-          onSelect={() => selectImage("logo")}
-          size="h-10 w-28"
-        />
-        <ImageField
-          label="Favicon"
-          src={getImageSrc(favicon, pendingFavicon)}
-          path={pendingFavicon ? pendingFavicon.split(/[/\\]/).pop()! : favicon}
-          onSelect={() => selectImage("favicon")}
-          size="h-10 w-10"
-        />
-      </section>
-
-      <mdui-divider />
-
-      {/* Links */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-medium text-gray-700">友情链接</h3>
-          <mdui-switch
-            checked={linksEnabled || undefined}
-            onChange={(e: any) => setLinksEnabled(e.target.checked)}
-          />
-        </div>
-        {linksEnabled && (
-          <div className="space-y-2">
-            {linkItems.map((item, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <mdui-text-field
-                  variant="outlined"
-                  label="名称"
-                  value={item.name}
-                  onInput={(e: any) => {
-                    const arr = [...linkItems];
-                    arr[i] = { ...arr[i], name: e.target.value };
-                    setLinkItems(arr);
-                  }}
-                  class="flex-1"
-                />
-                <mdui-text-field
-                  variant="outlined"
-                  label="URL"
-                  value={item.url}
-                  onInput={(e: any) => {
-                    const arr = [...linkItems];
-                    arr[i] = { ...arr[i], url: e.target.value };
-                    setLinkItems(arr);
-                  }}
-                  class="flex-[2]"
-                />
-                <mdui-button-icon
-                  icon="delete"
-                  onClick={() => setLinkItems(linkItems.filter((_, j) => j !== i))}
-                />
-              </div>
-            ))}
-            <mdui-button
-              variant="tonal"
-              icon="add"
-              onClick={() => setLinkItems([...linkItems, { name: "", url: "" }])}
-            >
-              添加链接
-            </mdui-button>
-          </div>
-        )}
-      </section>
-
-      <mdui-divider />
-
-      {/* SocialLinks */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-medium text-gray-700">社交链接</h3>
-          <mdui-switch
-            checked={socialEnabled || undefined}
-            onChange={(e: any) => setSocialEnabled(e.target.checked)}
-          />
-        </div>
-        {socialEnabled && (
-          <div className="space-y-3">
-            {socialItems.map((item, i) => (
-              <SocialLinkRow
-                key={i}
-                item={item}
-                onChange={(updated) => {
-                  const arr = [...socialItems];
-                  arr[i] = updated;
-                  setSocialItems(arr);
-                }}
-                onDelete={() => setSocialItems(socialItems.filter((_, j) => j !== i))}
-              />
-            ))}
-            <mdui-button
-              variant="tonal"
-              icon="add"
-              onClick={() => setSocialItems([...socialItems, { platform: "github", url: "" }])}
-            >
-              添加社交链接
-            </mdui-button>
-          </div>
-        )}
-      </section>
-
-      <mdui-divider />
-
-      {/* 高级选项 */}
-      <section className="border rounded-lg overflow-hidden">
-        <mdui-collapse>
-          <mdui-collapse-item value="advanced">
-            <div slot="header" className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none">
-              <mdui-icon name="tune" />
-              <span className="font-medium">高级选项</span>
-            </div>
-            <div className="space-y-4 px-4 pb-4">
-              <div className="flex gap-3 items-center">
-                <mdui-switch
-                  checked={siteUrlEnabled || undefined}
-                  onChange={(e: any) => setSiteUrlEnabled(e.target.checked)}
-                />
-                <mdui-text-field
-                  variant="outlined"
-                  label="网站 URL"
-                  type="url"
-                  value={siteUrl}
-                  disabled={!siteUrlEnabled || undefined}
-                  placeholder="https://example.com"
-                  onInput={(e: any) => setSiteUrl(e.target.value)}
-                  class="flex-1"
-                />
-              </div>
-              <mdui-select
-                variant="outlined"
-                label="时区"
-                value={timezone}
-                onChange={(e: any) => setTimezone(e.target.value)}
-              >
-                {COMMON_TIMEZONES.map((tz) => (
-                  <mdui-menu-item key={tz} value={tz}>
-                    {tz} (UTC{getTimezoneOffset(tz)})
-                  </mdui-menu-item>
-                ))}
-              </mdui-select>
-              <mdui-text-field
-                variant="outlined"
-                label="Base Path"
-                value={basePath}
-                placeholder="/"
-                helper="子目录部署路径，如 /blog"
-                onInput={(e: any) => setBasePath(e.target.value)}
-              />
-            </div>
-          </mdui-collapse-item>
-        </mdui-collapse>
-      </section>
-
-
-      <mdui-divider />
-
-      {/* 软件设置 */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-medium mb-0">软件设置</h2>
-          <mdui-button variant="text" icon="content_copy" onClick={handleCopyEnv}>
-            复制环境信息
-          </mdui-button>
-        </div>
-        <mdui-card class="p-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">博客目录</p>
-                <p className="text-sm text-gray-500">{blogDir}</p>
-              </div>
-              <mdui-button variant="text" onClick={() => invoke("open_in_explorer", { path: blogDir })}>
-                打开
-              </mdui-button>
-            </div>
-            <mdui-divider />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">@s-page/core</p>
-                <p className="text-sm text-gray-500">{shellVersion ?? "未缓存"}</p>
-              </div>
-              <mdui-button variant="text" loading={updating || undefined} onClick={handleUpdateShell}>
-                检查更新
-              </mdui-button>
-            </div>
-            <div>
-              <p className="font-medium">@s-page/engine</p>
-              <p className="text-sm text-gray-500">{engineVersion}</p>
-            </div>
-            <div>
-              <p className="font-medium">模板版本</p>
-              <p className="text-sm text-gray-500">{templateVersion}</p>
-            </div>
-          </div>
-        </mdui-card>
-      </section>
-
-      {/* Snackbar */}
       <mdui-snackbar open={snackOpen || undefined} placement="top">
         {snackMsg}
       </mdui-snackbar>
@@ -472,16 +515,82 @@ export function Settings({ blogDir }: Props) {
 
 // ── Sub-components ────────────────────────────────────────
 
-function ImageField({ label, src, path, onSelect, size }: {
+function SettingsPanel({ icon, title, description, children }: {
+  icon: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <mdui-card variant="outlined" class="settings-panel">
+      <div className="settings-panel-heading">
+        <span className="settings-panel-icon"><mdui-icon name={icon} /></span>
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+      <div className="settings-panel-body">{children}</div>
+    </mdui-card>
+  );
+}
+
+function SettingToggle({ title, description, checked, onChange }: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="settings-toggle-row">
+      <span>
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+      <mdui-switch
+        checked={checked || undefined}
+        onChange={(event: any) => onChange(event.target.checked)}
+      />
+    </label>
+  );
+}
+
+function EmptySetting({ text }: { text: string }) {
+  return (
+    <div className="settings-empty">
+      <mdui-icon name="add_link" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function InfoRow({ label, value, action }: {
   label: string;
+  value: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="settings-info-row">
+      <div>
+        <p>{label}</p>
+        <span>{value}</span>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ImageField({ label, description, src, path, onSelect, size }: {
+  label: string;
+  description: string;
   src: string;
   path: string;
   onSelect: () => void;
   size: string;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className={`${size} bg-gray-100 rounded border flex items-center justify-center overflow-hidden`}>
+    <div className="settings-image-row">
+      <div className={`${size} settings-image-preview`}>
         <img
           src={src}
           alt={label}
@@ -489,11 +598,12 @@ function ImageField({ label, src, path, onSelect, size }: {
           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
         />
       </div>
-      <div className="flex-1">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-gray-500">{path}</p>
+      <div className="settings-image-copy">
+        <p>{label}</p>
+        <span>{description}</span>
+        <small>{path}</small>
       </div>
-      <mdui-button variant="tonal" onClick={onSelect}>
+      <mdui-button variant="tonal" icon="upload" onClick={onSelect}>
         更换
       </mdui-button>
     </div>
@@ -509,8 +619,8 @@ function SocialLinkRow({ item, onChange, onDelete }: {
   const selectValue = isCustom ? "__custom__" : item.platform;
 
   return (
-    <div className="space-y-2">
-      <div className="flex gap-2 items-center">
+    <div className="settings-social-row">
+      <div className="settings-social-main">
         <mdui-select
           variant="outlined"
           label="平台"
@@ -523,7 +633,7 @@ function SocialLinkRow({ item, onChange, onDelete }: {
               onChange({ platform: v, url: item.url, icon: undefined, label: undefined });
             }
           }}
-          class="w-36"
+          class="settings-social-platform"
         >
           {BUILTIN_PLATFORMS.map((p) => (
             <mdui-menu-item key={p} value={p}>{p}</mdui-menu-item>
@@ -537,20 +647,17 @@ function SocialLinkRow({ item, onChange, onDelete }: {
           value={item.url || ""}
           placeholder={item.platform === "rss" ? "可选" : "https://..."}
           onInput={(e: any) => onChange({ ...item, url: e.target.value || undefined })}
-          class="flex-1"
         />
-        <mdui-button-icon icon="delete" onClick={onDelete} />
+        <mdui-button-icon icon="delete" aria-label="删除社交链接" onClick={onDelete} />
       </div>
 
       {isCustom && (
-        <div className="flex gap-2 items-center">
-          <div className="w-36 shrink-0" />
+        <div className="settings-social-custom">
           <mdui-text-field
             variant="outlined"
             label="显示名称"
             value={item.label || ""}
             onInput={(e: any) => onChange({ ...item, label: e.target.value || undefined })}
-            class="flex-1"
           />
           <mdui-text-field
             variant="outlined"
@@ -558,9 +665,7 @@ function SocialLinkRow({ item, onChange, onDelete }: {
             value={item.icon || ""}
             placeholder="https://example.com/icon.svg"
             onInput={(e: any) => onChange({ ...item, icon: e.target.value || undefined })}
-            class="flex-1"
           />
-          <div className="w-10 shrink-0" />
         </div>
       )}
     </div>

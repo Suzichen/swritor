@@ -40,20 +40,21 @@ function AppContent() {
     if (saved) setBlogDir(saved);
   }, []);
 
-  // First-time setup dialog: show after login if the user has no site yet
-  // and hasn't permanently skipped it.
+  // Open setup once after login. Profile/site updates refresh `user`; they must
+  // not close a setup dialog that is still submitting the remaining fields.
   useEffect(() => {
+    if (!isLoggedIn) {
+      setShowSetup(false);
+      return;
+    }
     if (
-      isLoggedIn &&
       user &&
       !user.siteSlug &&
       !localStorage.getItem(SKIP_SETUP_KEY)
     ) {
       setShowSetup(true);
-    } else {
-      setShowSetup(false);
     }
-  }, [isLoggedIn, user]);
+  }, [isLoggedIn, user?.id]);
 
   const skipSetup = () => {
     localStorage.setItem(SKIP_SETUP_KEY, "1");

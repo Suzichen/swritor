@@ -181,6 +181,440 @@ mdui-dialog.wide-dialog::part(action) {
   align-items: center;
 }
 
+/* Settings */
+.settings-page {
+  min-height: 100%;
+  color: var(--mdui-color-on-surface);
+  background: var(--mdui-color-surface-container-lowest);
+}
+
+.settings-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 88px;
+  padding: 18px clamp(24px, 4vw, 48px);
+  background: color-mix(in srgb, var(--mdui-color-surface) 92%, transparent);
+  border-bottom: 1px solid var(--mdui-color-outline-variant);
+  backdrop-filter: blur(12px);
+}
+
+.settings-header h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.settings-header p,
+.settings-panel-heading p {
+  margin: 4px 0 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 14px;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 760px);
+  gap: clamp(28px, 4vw, 56px);
+  justify-content: center;
+  padding: 32px clamp(24px, 4vw, 48px) 64px;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: start;
+}
+
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  color: var(--mdui-color-on-surface-variant);
+  background: transparent;
+  border: 0;
+  border-radius: 24px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.settings-nav button:hover {
+  background: var(--mdui-color-surface-container);
+}
+
+.settings-nav button.active {
+  color: var(--mdui-color-on-secondary-container);
+  font-weight: 500;
+  background: var(--mdui-color-secondary-container);
+}
+
+.settings-nav mdui-icon {
+  font-size: 21px;
+}
+
+.settings-content,
+.settings-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.settings-content > [hidden],
+.settings-panel-stack[hidden] {
+  display: none;
+}
+
+.settings-content > div:not(.settings-panel-stack) {
+  min-width: 0;
+}
+
+mdui-card.settings-panel {
+  display: block;
+  overflow: hidden;
+  background: var(--mdui-color-surface);
+  --shape-corner: 20px;
+}
+
+.settings-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 24px 24px 20px;
+}
+
+.settings-panel-heading h2 {
+  margin: 1px 0 0;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.settings-panel-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  color: var(--mdui-color-primary);
+  background: var(--mdui-color-primary-container);
+  border-radius: 12px;
+}
+
+.settings-panel-icon mdui-icon {
+  font-size: 21px;
+}
+
+.settings-panel-body {
+  padding: 0 24px 24px;
+}
+
+.settings-fields,
+.settings-repeat-list,
+.personal-settings-form,
+.personal-settings-profile,
+.personal-settings-sites {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-fields > mdui-text-field,
+.settings-fields > mdui-select,
+.settings-repeat-row mdui-text-field,
+.settings-social-main mdui-text-field,
+.settings-social-main mdui-select,
+.settings-social-custom mdui-text-field,
+.personal-settings-profile > mdui-text-field,
+.personal-settings-sites > mdui-text-field,
+.personal-site-apply mdui-text-field {
+  width: 100%;
+}
+
+.settings-fields-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 18px;
+  row-gap: 30px;
+}
+
+.settings-fields-two mdui-text-field::part(supporting) {
+  min-height: 22px;
+}
+
+.settings-field-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 64px;
+  padding: 12px 16px;
+  background: var(--mdui-color-surface-container-low);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.settings-toggle-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-toggle-row strong,
+.settings-image-copy p,
+.personal-avatar-copy p,
+.personal-settings-subheading p,
+.settings-info-row p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settings-toggle-row small,
+.settings-image-copy span,
+.personal-avatar-copy span,
+.personal-settings-subheading span,
+.settings-info-row span {
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 13px;
+}
+
+.settings-image-list,
+.settings-info-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-image-row,
+.settings-info-row,
+.personal-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.settings-image-preview,
+.personal-avatar-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--mdui-color-surface-container);
+  border: 1px solid var(--mdui-color-outline-variant);
+  border-radius: 12px;
+}
+
+.personal-avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.settings-image-copy,
+.personal-avatar-copy,
+.settings-info-row > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.settings-image-copy small {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--mdui-color-outline);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-repeat-list {
+  margin-top: 18px;
+}
+
+.settings-repeat-row,
+.settings-social-main,
+.settings-social-custom,
+.personal-site-apply {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(220px, 2fr) 40px;
+  gap: 10px;
+  align-items: center;
+}
+
+.settings-social-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-social-main {
+  grid-template-columns: 150px minmax(220px, 1fr) 40px;
+}
+
+.settings-social-custom {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-left: 160px;
+}
+
+.personal-site-apply {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.personal-site-apply-dialog {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.personal-site-apply mdui-button {
+  margin-top: 8px;
+}
+
+.personal-settings-sites {
+  padding-top: 22px;
+  border-top: 1px solid var(--mdui-color-outline-variant);
+}
+
+.personal-settings-subheading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-empty,
+.settings-login-required {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 88px;
+  color: var(--mdui-color-on-surface-variant);
+  background: var(--mdui-color-surface-container-low);
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.settings-login-required {
+  justify-content: flex-start;
+  padding: 0 18px;
+}
+
+.settings-login-required div {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-login-required p {
+  margin: 0;
+  color: var(--mdui-color-on-surface);
+  font-weight: 500;
+}
+
+.settings-info-row {
+  justify-content: space-between;
+  min-height: 64px;
+}
+
+.settings-info-row span {
+  overflow-wrap: anywhere;
+}
+
+.settings-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 18px;
+}
+
+@media (max-width: 860px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 760px);
+    gap: 20px;
+  }
+
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .settings-nav button {
+    flex: 0 0 auto;
+    width: auto;
+    padding: 0 14px;
+  }
+}
+
+@media (max-width: 600px) {
+  .settings-header {
+    min-height: 76px;
+    padding: 14px 16px;
+  }
+
+  .settings-header p,
+  .settings-nav button span {
+    display: none;
+  }
+
+  .settings-layout {
+    padding: 20px 12px 48px;
+  }
+
+  .settings-nav {
+    justify-content: space-between;
+  }
+
+  .settings-nav button {
+    justify-content: center;
+    min-width: 48px;
+    padding: 0 12px;
+  }
+
+  .settings-panel-heading,
+  .settings-panel-body {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .settings-fields-two,
+  .settings-repeat-row,
+  .settings-social-main,
+  .settings-social-custom,
+  .personal-site-apply {
+    grid-template-columns: 1fr;
+    padding-left: 0;
+  }
+
+  .settings-repeat-row mdui-button-icon,
+  .settings-social-main mdui-button-icon {
+    justify-self: end;
+  }
+
+  .settings-image-row,
+  .personal-avatar-row {
+    flex-wrap: wrap;
+  }
+}
+
 /* macOS WebKit: backdrop-blur + CSS variable bg can be transparent on first paint.
    Add an opaque fallback that only applies on WebKit (Safari/Mac WebView). */
 @supports (-webkit-appearance: none) and (not (overflow: overlay)) {

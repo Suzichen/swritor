@@ -16,11 +16,12 @@ interface Props {
 export function FirstTimeSetupDialog({ open, blogDir, onSkip, onClose }: Props) {
   const formRef = useRef<PersonalSettingsFormHandle>(null);
   const [saving, setSaving] = useState(false);
+  const [formReady, setFormReady] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const ok = await formRef.current?.saveProfile();
+      const ok = await formRef.current?.saveProfile({ persistDefaults: true });
       if (ok) onClose();
     } finally {
       setSaving(false);
@@ -38,14 +39,20 @@ export function FirstTimeSetupDialog({ open, blogDir, onSkip, onClose }: Props) 
           ref={formRef}
           blogDir={blogDir}
           mode="dialog"
+          onReadyChange={setFormReady}
         />
       </div>
       <div slot="action">
         <mdui-button variant="text" onClick={onSkip}>
           跳过
         </mdui-button>
-        <mdui-button variant="filled" loading={saving || undefined} onClick={handleSave}>
-          保存
+        <mdui-button
+          variant="filled"
+          loading={saving || undefined}
+          disabled={!formReady || undefined}
+          onClick={handleSave}
+        >
+          保存并完成
         </mdui-button>
       </div>
     </mdui-dialog>

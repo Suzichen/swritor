@@ -348,6 +348,48 @@ pub async fn auth_get_status(
         }
     }
 
+    // A restored JWT only contains identity claims. Load the current PocketBase
+    // record so profile fields always reflect persisted values after app restart.
+    let (token_for_profile, user_id) = {
+        let g = state.auth.lock().unwrap();
+        match g.as_ref() {
+            Some(a) => (a.token.clone(), a.user.id.clone()),
+            None => (String::new(), String::new()),
+        }
+    };
+    if let Some(pb) = PB_BASE_URL {
+        let client = reqwest::Client::new();
+        if let Ok(resp) = client
+            .get(format!(
+                "{}/api/collections/users/records/{}",
+                pb, user_id
+            ))
+            .header("Authorization", format!("Bearer {}", token_for_profile))
+            .send()
+            .await
+        {
+            if resp.status().is_success() {
+                if let Ok(record) = resp.json::<serde_json::Value>().await {
+                    let mut g = state.auth.lock().unwrap();
+                    if let Some(a) = g.as_mut() {
+                        a.user.email = record["email"]
+                            .as_str()
+                            .unwrap_or(&a.user.email)
+                            .to_string();
+                        a.user.verified = record["verified"]
+                            .as_bool()
+                            .unwrap_or(a.user.verified);
+                        a.user.name = record["name"]
+                            .as_str()
+                            .filter(|value| !value.is_empty())
+                            .map(|value| value.to_string());
+                        a.user.avatar = avatar_url(pb, &record["id"], &record["avatar"]);
+                    }
+                }
+            }
+        }
+    }
+
     // Populate site_slug if missing (e.g. session restored from JWT on startup),
     // so the first-time setup dialog trigger is accurate.
     let (token_for_sites, need_sites) = {
@@ -452,6 +494,57 @@ fn mime_from_filename(name: &str) -> &'static str {
     } else {
         "application/octet-stream"
     }
+}
+
+#[tauri::command]
+pub async fn profile_update(
+    name: String,
+    avatar_file_path: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let pb = pb_url()?;
+    let (token, uid) = current_auth(&state)?;
+    let mut form = reqwest::multipart::Form::new().text("name", name.clone());
+
+    if let Some(file_path) = avatar_file_path {
+        let bytes = std::fs::read(&file_path).map_err(|e| format!("读取头像文件失败: {}", e))?;
+        let filename = std::path::Path::new(&file_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("avatar.png")
+            .to_string();
+        let part = reqwest::multipart::Part::bytes(bytes)
+            .file_name(filename.clone())
+            .mime_str(mime_from_filename(&filename))
+            .map_err(|e| format!("构造头像上传数据失败: {}", e))?;
+        form = form.part("avatar", part);
+    }
+
+    let response = reqwest::Client::new()
+        .patch(format!("{}/api/collections/users/records/{}", pb, uid))
+        .header("Authorization", format!("Bearer {}", token))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|_| "网络连接失败，请检查网络".to_string())?;
+
+    let status = response.status().as_u16();
+    let body = response.text().await.unwrap_or_default();
+    if status >= 400 {
+        return Err(map_pb_error(status, &body));
+    }
+
+    let record: serde_json::Value =
+        serde_json::from_str(&body).map_err(|_| "解析资料保存响应失败".to_string())?;
+    let mut guard = state.auth.lock().unwrap();
+    if let Some(auth) = guard.as_mut() {
+        auth.user.name = record["name"]
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string());
+        auth.user.avatar = avatar_url(pb, &record["id"], &record["avatar"]);
+    }
+    Ok(())
 }
 
 #[tauri::command]
