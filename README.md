@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- 📂 **一键初始换/管理博客** - 通过图形化界面创建新的 Spage 博客或管理现有的Spage 博客项目
+- 📂 **一键生成/管理博客** - 通过图形化界面创建新的 Spage 博客或管理现有的Spage 博客项目
 - 🚀 **体积小巧** - 安装包 < 10MB，磁盘占用 < 20MB
 - ⚡ **Rust 驱动** - 使用 [spage](https://github.com/Suzichen/spage) 系列 Rust crate（scaffold / engine），无需外部运行时
 - 🌐 **在线模板** - 初始化时自动从 npm registry 拉取最新项目模板
@@ -30,7 +30,10 @@
 - **应用框架**: Tauri 2.x（Rust 后端 + WebView 前端）
 - **前端架构**: React 18 + TypeScript + Vite
 - **样式风格**: MDUI + Tailwind CSS
-- **内置引擎**: 基于 Spage项目的公用Rust crate，例: spage-scaffold(项目模板) + spage-engine（数据生成、页面构建和本地预览）
+- **内置引擎**: 基于 Spage项目的公开Rust crate/NPM package
+  - spage-scaffold（项目模板生成）
+  - spage-engine（数据生成、页面构建和本地预览）
+  - @s-page/core（前端驱动）
 
 ## 环境要求
 
