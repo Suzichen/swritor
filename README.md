@@ -6,10 +6,10 @@
 
 - 📂 **一键生成/管理博客** - 通过图形化界面创建新的 Spage 博客或管理现有的Spage 博客项目
 - 🚀 **体积小巧** - 安装包 < 10MB，磁盘占用 < 20MB
-- ⚡ **Rust 驱动** - 使用 [spage](https://github.com/Suzichen/spage) 系列 Rust crate（scaffold / engine），无需外部运行时
+- ⚡ **Rust 驱动** - 使用 [Spage](https://github.com/Suzichen/spage) 系列 Rust crate（scaffold / engine），保障与CLI项目的一致性
 - 🌐 **在线模板** - 初始化时自动从 npm registry 拉取最新项目模板
 - 🖥️ **跨平台支持** - 支持 Windows 和 macOS 平台
-- 🎉 **一键发布** - 支持一键部署到 `Spage` 平台
+- 🎉 **一键发布** - 支持免费申请域名并一键部署到 `Spage` 平台，傻瓜式操作，零心智负担
 
 
 ## 界面截图
