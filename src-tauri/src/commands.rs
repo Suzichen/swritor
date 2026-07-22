@@ -69,6 +69,11 @@ pub async fn list_posts(blog_dir: String) -> Result<Vec<PostSummary>, String> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().map(|e| e == "md").unwrap_or(false) {
+            let filename = path.file_name().unwrap().to_string_lossy();
+            let (_, language) = spage_engine::posts::parse_post_filename(&filename);
+            if language.is_some() {
+                continue;
+            }
             if let Ok(content) = fs::read_to_string(&path) {
                 let summary = parse_post_summary(&path, &content);
                 posts.push(summary);
@@ -321,13 +326,16 @@ pub async fn read_directory_tree(path: String) -> Result<FileNode, String> {
 
 fn parse_post_summary(path: &Path, content: &str) -> PostSummary {
     let filename = path.file_name().unwrap().to_string_lossy().to_string();
-    let (frontmatter, _body) = split_frontmatter(content);
+    let (frontmatter, body) = split_frontmatter(content);
     let title =
         extract_fm_str(&frontmatter, "title").unwrap_or_else(|| filename.replace(".md", ""));
     let date = extract_fm_str(&frontmatter, "date").unwrap_or_default();
     let tags = extract_fm_list(&frontmatter, "tags");
     let categories = extract_fm_list(&frontmatter, "categories");
-    let preview = extract_fm_str(&frontmatter, "preview").unwrap_or_default();
+    let preview = extract_fm_str(&frontmatter, "preview")
+        .or_else(|| extract_fm_str(&frontmatter, "description"))
+        .or_else(|| extract_fm_str(&frontmatter, "excerpt"))
+        .unwrap_or_else(|| build_post_preview(&body, 140));
     PostSummary {
         filename,
         title,
@@ -335,6 +343,38 @@ fn parse_post_summary(path: &Path, content: &str) -> PostSummary {
         tags,
         categories,
         preview,
+    }
+}
+
+fn build_post_preview(body: &str, max_chars: usize) -> String {
+    let mut in_code_block = false;
+    let plain = body
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.starts_with("```") {
+                in_code_block = !in_code_block;
+                return None;
+            }
+            if in_code_block || trimmed.is_empty() || trimmed.starts_with("![") {
+                return None;
+            }
+            Some(
+                trimmed
+                    .trim_start_matches('#')
+                    .trim()
+                    .replace("**", "")
+                    .replace("__", "")
+                    .replace('`', ""),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let plain = plain.trim();
+    if plain.chars().count() > max_chars {
+        format!("{}...", plain.chars().take(max_chars).collect::<String>())
+    } else {
+        plain.to_string()
     }
 }
 

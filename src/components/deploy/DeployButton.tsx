@@ -79,9 +79,13 @@ export function DeployButton({ sites, disabled, disabledReason, onSelect, label 
       <div
         title={tooltip}
         style={{
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
+          justifyContent: "center",
           gap: s.gap,
+          boxSizing: "border-box",
+          width: "100%",
+          whiteSpace: "nowrap",
           height: s.height,
           padding: `0 ${size === "small" ? 12 : 16}px`,
           borderRadius: s.radius,
@@ -109,8 +113,10 @@ export function DeployButton({ sites, disabled, disabledReason, onSelect, label 
       <div
         slot="trigger"
         style={{
-          display: "inline-flex",
+          display: "flex",
           alignItems: "stretch",
+          width: "100%",
+          boxSizing: "border-box",
           height: s.height,
           borderRadius: s.radius,
           overflow: "hidden",
@@ -122,12 +128,12 @@ export function DeployButton({ sites, disabled, disabledReason, onSelect, label 
           userSelect: "none",
         }}
       >
-        <div style={{ display: "inline-flex", alignItems: "center", gap: s.gap, padding: s.padMain }}>
+        <div style={{ display: "flex", flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: s.gap, padding: s.padMain, whiteSpace: "nowrap" }}>
           <mdui-icon name="rocket_launch" style={{ fontSize: s.rocket }} />
           {label}
         </div>
         <div style={{ width: 1, background: "rgba(255,255,255,0.4)" }} />
-        <div style={{ display: "inline-flex", alignItems: "center", padding: s.padArrow }}>
+        <div style={{ display: "flex", flex: "0 0 auto", alignItems: "center", padding: s.padArrow }}>
           <mdui-icon name="arrow_drop_down" style={{ fontSize: s.arrow }} />
         </div>
       </div>

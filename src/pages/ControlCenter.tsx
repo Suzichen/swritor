@@ -373,75 +373,87 @@ export function ControlCenter({ blogDir }: Props) {
   };
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h2 className="text-xl font-medium mb-6">控制中心</h2>
+    <div className="workspace-page control-center-page">
+      <header className="workspace-header">
+        <div>
+          <h2>控制中心</h2>
+          <p>管理本地预览、站点发布和媒体资源</p>
+        </div>
+      </header>
 
-      {/* ── Serve Card ── */}
-      <mdui-card class="p-5 mb-4" style={{ display: "block" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-medium mb-1">开发服务器</h3>
+      <div className="control-card-grid">
+        <mdui-card class="control-card control-card-serve" variant="elevated">
+          <div className="control-card-icon" aria-hidden="true">
+            <mdui-icon name="cell_tower" />
+          </div>
+          <div className="control-card-copy">
+            <div className="control-card-heading">
+              <span className={`control-status-dot${serveAddr ? " is-active" : ""}`} />
+              <span>{serveAddr ? "开发服务器运行中" : "开发服务器已停止"}</span>
+            </div>
+            <h3>本地预览</h3>
+            <p>{serveAddr || "在浏览器中查看博客的最新效果。"}</p>
+          </div>
+          <div className="control-card-actions">
             {serveAddr ? (
-              <p className="text-sm" style={{ color: "#16a34a" }}>● 运行中 — {serveAddr}</p>
+              <mdui-button variant="outlined" onClick={handleStopServe} loading={serveLoading || undefined} icon="stop">
+                停止服务
+              </mdui-button>
             ) : (
-              <p className="text-sm" style={{ color: "#6b7280" }}>● 已停止</p>
+              <mdui-button variant="filled" onClick={handleStartServe} loading={serveLoading || undefined} icon="play_arrow">
+                启动预览
+              </mdui-button>
             )}
           </div>
-          {serveAddr ? (
-            <mdui-button variant="outlined" onClick={handleStopServe} loading={serveLoading || undefined} icon="stop">
-              停止
-            </mdui-button>
-          ) : (
-            <mdui-button variant="filled" onClick={handleStartServe} loading={serveLoading || undefined} icon="play_arrow">
-              启动
-            </mdui-button>
-          )}
-        </div>
-      </mdui-card>
+        </mdui-card>
 
-      {/* ── Build Card ── */}
-      <mdui-card class="p-5 mb-4" style={{ display: "block" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-medium mb-1">生成网站</h3>
-            <p className="text-sm" style={{ color: "#6b7280" }}>生成可部署的博客静态文件</p>
+        <mdui-card class="control-card" variant="elevated">
+          <div className="control-card-icon" aria-hidden="true">
+            <mdui-icon name="language" />
           </div>
-          <div className="flex items-center gap-2">
-            <mdui-button variant="filled" onClick={handleBuild} icon="build" disabled={buildState === "building" || deployBusy || undefined}>
+          <div className="control-card-copy">
+            <div className="control-card-heading">发布工具</div>
+            <h3>构建与部署</h3>
+            <p>构建网站，或直接发布到你的线上站点。</p>
+          </div>
+          <div className="control-card-actions control-card-actions-group">
+            <mdui-button class="control-build-button" variant="filled" onClick={handleBuild} icon="build" disabled={buildState === "building" || deployBusy || undefined}>
               构建
             </mdui-button>
-            <DeployButton
-              sites={sites}
-              size="small"
-              disabled={!!deployDisabledReason()}
-              disabledReason={deployDisabledReason()}
-              onSelect={(site) => startDeploy(site, { rebuild: true })}
-            />
+            <div className="control-deploy-button">
+              <DeployButton
+                sites={sites}
+                disabled={!!deployDisabledReason()}
+                disabledReason={deployDisabledReason()}
+                onSelect={(site) => startDeploy(site, { rebuild: true })}
+              />
+            </div>
           </div>
-        </div>
-      </mdui-card>
+        </mdui-card>
 
-      {/* ── Sync Card ── */}
-      <mdui-card class="p-5 mb-4" style={{ display: "block" }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-medium mb-1">媒体同步</h3>
-            {syncAvailable ? (
-              <p className="text-sm" style={{ color: "#6b7280" }}>同步相册媒体到 S3 存储</p>
-            ) : (
-              <p className="text-sm" style={{ color: "#ea580c" }}>请先在设置中配置媒体存储 Provider</p>
-            )}
+        <mdui-card class="control-card" variant="elevated">
+          <div className="control-card-icon" aria-hidden="true">
+            <mdui-icon name="cloud_upload" />
           </div>
-          <mdui-button
-            variant="filled"
-            onClick={handleSync}
-            icon="cloud_upload"
-            disabled={!syncAvailable || syncState === "syncing" || undefined}
-          >
-            同步
-          </mdui-button>
-        </div>
-      </mdui-card>
+          <div className="control-card-copy">
+            <div className={`control-card-heading${syncAvailable ? "" : " is-warning"}`}>
+              {syncAvailable ? "远程存储已连接" : "需要配置远程存储"}
+            </div>
+            <h3>媒体同步</h3>
+            <p>{syncAvailable ? "上传新增或修改过的相册文件。" : "配置存储服务后即可同步相册原图。"}</p>
+          </div>
+          <div className="control-card-actions">
+            <mdui-button
+              variant="filled"
+              onClick={handleSync}
+              icon="cloud_upload"
+              disabled={!syncAvailable || syncState === "syncing" || undefined}
+            >
+              开始同步
+            </mdui-button>
+          </div>
+        </mdui-card>
+      </div>
 
       {/* ── Build Dialog ── */}
       <mdui-dialog ref={buildDialogRef} class="wide-dialog" close-on-overlay-click={buildState !== "building" && buildState !== "cancelling" || undefined}>

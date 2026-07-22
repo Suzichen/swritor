@@ -674,6 +674,482 @@ mdui-card.settings-panel {
   }
 }
 
+/* Workspace pages */
+.workspace-page {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 32px clamp(20px, 4vw, 64px) 64px;
+  color: var(--mdui-color-on-surface);
+  background: var(--mdui-color-surface-container-lowest);
+}
+
+.workspace-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  width: min(100%, 1180px);
+  margin: 0 auto 28px;
+}
+
+.workspace-header h2 {
+  margin: 0;
+  font-size: clamp(24px, 2.4vw, 32px);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.workspace-header p {
+  margin: 7px 0 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 14px;
+}
+
+.control-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+mdui-card.control-card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 286px;
+  padding: 24px;
+  background: var(--mdui-color-surface);
+  border: 1px solid var(--mdui-color-outline);
+  box-shadow: 0 4px 12px rgba(40, 30, 50, 0.12);
+  --shape-corner: 14px;
+}
+
+mdui-card.control-card::part(container) {
+  background: var(--mdui-color-surface);
+}
+
+.control-card-icon {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
+  color: var(--mdui-color-primary);
+  background: var(--mdui-color-primary-container);
+  border: 1px solid color-mix(in srgb, var(--mdui-color-primary) 22%, transparent);
+  border-radius: 18px;
+}
+
+.control-card-icon mdui-icon {
+  font-size: 32px;
+}
+
+.control-card-copy {
+  min-width: 0;
+}
+
+.control-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 20px;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.control-card-heading.is-warning {
+  color: var(--mdui-color-error);
+}
+
+.control-status-dot {
+  display: inline-block;
+  flex: 0 0 8px;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  background: #9e9e9e;
+  border: 1px solid #757575;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(117, 117, 117, 0.12);
+}
+
+.control-status-dot.is-active {
+  background: #2e7d32;
+  border-color: #2e7d32;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #2e7d32 16%, transparent);
+}
+
+.control-card h3 {
+  margin: 8px 0 6px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.control-card p {
+  max-width: 30ch;
+  margin: 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.control-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.control-card-actions-group {
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.control-build-button {
+  flex: 0 0 112px;
+  width: 112px;
+}
+
+.control-deploy-button {
+  display: block;
+  flex: 0 0 136px;
+  width: 136px;
+  min-width: 136px;
+}
+
+.control-deploy-button mdui-dropdown {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.control-deploy-button > div,
+.control-deploy-button [slot="trigger"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.control-deploy-button [slot="trigger"] {
+  justify-content: center;
+}
+
+/* Post list */
+.post-list-page {
+  padding-bottom: 48px;
+}
+
+.post-list-loading,
+mdui-card.post-list-surface,
+mdui-card.post-empty-state {
+  display: block;
+  box-sizing: border-box;
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+.post-list-loading {
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+mdui-card.post-list-surface {
+  overflow: hidden;
+  background: var(--mdui-color-surface);
+  --shape-corner: 16px;
+}
+
+.post-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.post-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto 24px;
+  align-items: center;
+  gap: 20px;
+  min-height: 126px;
+  padding: 16px 20px;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.post-row + .post-row {
+  border-top: 1px solid var(--mdui-color-outline-variant);
+}
+
+.post-row:hover,
+.post-row:focus-visible,
+.post-row:focus-within {
+  background: var(--mdui-color-surface-container-low);
+}
+
+.post-row:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--mdui-color-primary);
+}
+
+.post-row-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  color: var(--mdui-color-on-surface-variant);
+  border-right: 1px solid var(--mdui-color-outline-variant);
+}
+
+.post-row-date span {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.post-row-date small {
+  margin-top: 2px;
+  color: var(--mdui-color-outline);
+  font-size: 11px;
+}
+
+.post-row-content {
+  display: grid;
+  grid-template-rows: 23px 20px 24px;
+  align-content: center;
+  min-width: 0;
+}
+
+.post-row-content h3 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-row-content > p {
+  display: -webkit-box;
+  align-self: center;
+  overflow: hidden;
+  margin: 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.post-row-content > p.is-empty {
+  color: var(--mdui-color-outline);
+}
+
+.post-row-meta {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px 10px;
+  align-self: end;
+  min-width: 0;
+  min-height: 20px;
+  overflow: hidden;
+  margin-top: 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 12px;
+}
+
+.post-category {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  color: var(--mdui-color-on-secondary-container);
+  background: var(--mdui-color-secondary-container);
+  border-radius: 6px;
+}
+
+.post-tag {
+  flex: 0 0 auto;
+  color: var(--mdui-color-primary);
+}
+
+.post-meta-empty {
+  color: var(--mdui-color-outline);
+}
+
+.post-row-actions {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  pointer-events: none;
+}
+
+.post-row:hover .post-row-actions,
+.post-row:focus-visible .post-row-actions,
+.post-row:focus-within .post-row-actions {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.post-row-actions mdui-button-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.post-row-arrow {
+  color: var(--mdui-color-outline);
+  font-size: 20px;
+  transition: opacity 140ms ease;
+}
+
+.post-row:hover .post-row-arrow,
+.post-row:focus-within .post-row-arrow {
+  opacity: 0;
+}
+
+mdui-card.post-empty-state {
+  padding: 72px 24px;
+  text-align: center;
+  background: var(--mdui-color-surface);
+  --shape-corner: 16px;
+}
+
+.post-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  color: var(--mdui-color-primary);
+  background: var(--mdui-color-primary-container);
+  border-radius: 16px;
+}
+
+.post-empty-icon mdui-icon {
+  font-size: 28px;
+}
+
+.post-empty-state h3 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.post-empty-state p {
+  margin: 8px 0 22px;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 14px;
+}
+
+@media (max-width: 1040px) {
+  .control-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .control-card-serve {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .workspace-page {
+    padding: 22px 12px 40px;
+  }
+
+  .workspace-header {
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .workspace-header h2 {
+    font-size: 24px;
+  }
+
+  .workspace-header p {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .control-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .control-card-serve {
+    grid-column: auto;
+  }
+
+  mdui-card.control-card {
+    min-height: 248px;
+    padding: 20px;
+  }
+
+  .control-card-icon {
+    margin-bottom: 20px;
+  }
+
+  .control-card-actions-group {
+    flex-wrap: wrap;
+  }
+
+  .control-card-actions-group .control-build-button,
+  .control-card-actions-group .control-deploy-button {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .post-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    min-height: 120px;
+    padding: 16px;
+  }
+
+  .post-row-content {
+    grid-template-rows: 23px 38px 24px;
+  }
+
+  .post-row-date,
+  .post-row-arrow {
+    display: none;
+  }
+
+  .post-row-content > p {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .post-row-actions {
+    align-self: start;
+  }
+}
+
+@media (hover: none) {
+  .post-row-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .post-row-arrow {
+    display: none;
+  }
+}
+
 /* macOS WebKit: backdrop-blur + CSS variable bg can be transparent on first paint.
    Add an opaque fallback that only applies on WebKit (Safari/Mac WebView). */
 @supports (-webkit-appearance: none) and (not (overflow: overlay)) {

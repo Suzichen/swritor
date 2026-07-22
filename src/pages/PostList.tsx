@@ -82,46 +82,88 @@ export function PostList({ blogDir, onEdit }: Props) {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-medium">文章列表</h2>
-        <mdui-button variant="tonal" icon="add" onClick={openCreateDialog}>
-          新建
+    <div className="workspace-page post-list-page">
+      <header className="workspace-header">
+        <div>
+          <h2>文章</h2>
+          <p>{loading ? "正在读取文章" : `${posts.length} 篇文章`}</p>
+        </div>
+        <mdui-button variant="filled" icon="add" onClick={openCreateDialog}>
+          新建文章
         </mdui-button>
-      </div>
+      </header>
 
       {loading ? (
-        <mdui-linear-progress></mdui-linear-progress>
-      ) : posts.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
-          <p>暂无文章</p>
-          <mdui-button variant="tonal" class="mt-4" onClick={openCreateDialog}>
-            创建第一篇文章
-          </mdui-button>
+        <div className="post-list-loading">
+          <mdui-linear-progress />
         </div>
+      ) : posts.length === 0 ? (
+        <mdui-card class="post-empty-state" variant="outlined">
+          <div className="post-empty-icon"><mdui-icon name="article" /></div>
+          <h3>还没有文章</h3>
+          <p>创建第一篇文章，开始记录和发布内容。</p>
+          <mdui-button variant="tonal" icon="add" onClick={openCreateDialog}>
+            创建文章
+          </mdui-button>
+        </mdui-card>
       ) : (
-        <mdui-list>
-          {posts.map((post) => (
-            <mdui-list-item
-              key={post.filename}
-              class="post-list-item"
-              headline={post.title}
-              description={`${post.date}${post.tags.length ? " · " + post.tags.join(", ") : ""}`}
-              onClick={() => onEdit(post.filename)}
-            >
-              <div slot="end-icon" className="flex items-center">
-                <mdui-button-icon
-                  icon="visibility"
-                  onClick={(e: any) => handlePreview(post.filename, e)}
-                ></mdui-button-icon>
-                <mdui-button-icon
-                  icon="delete"
-                  onClick={(e: any) => handleDeleteClick(post.filename, e)}
-                ></mdui-button-icon>
-              </div>
-            </mdui-list-item>
-          ))}
-        </mdui-list>
+        <mdui-card class="post-list-surface" variant="outlined">
+          <div className="post-list">
+            {posts.map((post) => (
+              <article
+                key={post.filename}
+                className="post-row"
+                tabIndex={0}
+                onClick={() => onEdit(post.filename)}
+                onKeyDown={(event) => {
+                  if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+                    event.preventDefault();
+                    onEdit(post.filename);
+                  }
+                }}
+              >
+                <div className="post-row-date">
+                  <span>{post.date?.slice(5, 10).replace("-", "/") || "--/--"}</span>
+                  <small>{post.date?.slice(0, 4) || ""}</small>
+                </div>
+                <div className="post-row-content">
+                  <h3>{post.title || "未命名文章"}</h3>
+                  <p className={post.preview ? undefined : "is-empty"}>
+                    {post.preview || "暂无摘要"}
+                  </p>
+                  <div className="post-row-meta">
+                    {post.categories.map((category) => (
+                      <span key={`category-${category}`} className="post-category">{category}</span>
+                    ))}
+                    {post.tags.map((tag) => (
+                      <span key={`tag-${tag}`} className="post-tag">#{tag}</span>
+                    ))}
+                    {!post.categories.length && !post.tags.length && (
+                      <span className="post-meta-empty">暂无分类和标签</span>
+                    )}
+                  </div>
+                </div>
+                <div className="post-row-actions">
+                  <mdui-tooltip content="预览" placement="top" trigger="hover">
+                    <mdui-button-icon
+                      icon="visibility"
+                      aria-label="预览文章"
+                      onClick={(e: any) => handlePreview(post.filename, e)}
+                    />
+                  </mdui-tooltip>
+                  <mdui-tooltip content="删除" placement="top" trigger="hover">
+                    <mdui-button-icon
+                      icon="delete"
+                      aria-label="删除文章"
+                      onClick={(e: any) => handleDeleteClick(post.filename, e)}
+                    />
+                  </mdui-tooltip>
+                </div>
+                <mdui-icon class="post-row-arrow" name="chevron_right" aria-hidden="true" />
+              </article>
+            ))}
+          </div>
+        </mdui-card>
       )}
 
       {/* 新建文章 Dialog */}
