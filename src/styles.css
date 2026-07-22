@@ -746,7 +746,7 @@ mdui-card.control-card::part(container) {
 }
 
 .control-card-icon mdui-icon {
-  font-size: 32px;
+  font-size: 48px;
 }
 
 .control-card-copy {
@@ -1084,10 +1084,18 @@ mdui-card.post-empty-state {
   }
 }
 
-@container (max-width: 308px) {
+@container (max-width: 320px) {
+  .control-card-actions:not(.control-card-actions-group) > mdui-button,
+  .control-card-actions-group {
+    width: 100%;
+  }
+
+  .control-card-actions:not(.control-card-actions-group) > mdui-button {
+    max-width: 100%;
+  }
+
   .control-card-actions-group {
     grid-template-columns: minmax(0, 1fr);
-    width: 100%;
   }
 }
 
@@ -1127,11 +1135,6 @@ mdui-card.post-empty-state {
 
   .control-card-icon {
     margin-bottom: 20px;
-  }
-
-  .control-card-actions-group {
-    grid-template-columns: minmax(0, 1fr);
-    width: 100%;
   }
 
   .post-row {
