@@ -11,11 +11,9 @@ import { LoginDialog } from "./components/auth/LoginDialog";
 import { RegisterDialog } from "./components/auth/RegisterDialog";
 import { FirstTimeSetupDialog } from "./components/settings/FirstTimeSetupDialog";
 import { WindowShell } from "./components/common/WindowShell";
-
-type Page = "control" | "posts" | "albums" | "settings";
+import { AppSidebar, type AppPage } from "./components/layout/AppSidebar";
 
 const SKIP_SETUP_KEY = "swritor-skip-site-setup";
-const SIDEBAR_COLLAPSE_QUERY = "(max-width: 719px)";
 
 function App() {
   return (
@@ -29,25 +27,13 @@ function App() {
 
 function AppContent() {
   const { user, isLoggedIn, isConfigured, logout } = useAuth();
-  const [page, setPage] = useState<Page>("control");
+  const [page, setPage] = useState<AppPage>("control");
   const [editingPost, setEditingPost] = useState<string | null>(null);
   const [blogDir, setBlogDir] = useState<string>("");
   const [showInit, setShowInit] = useState(false);
   const [authDialogMode, setAuthDialogMode] = useState<"login" | "register" | null>(null);
   const [showSetup, setShowSetup] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => window.matchMedia(SIDEBAR_COLLAPSE_QUERY).matches,
-  );
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(SIDEBAR_COLLAPSE_QUERY);
-    const syncSidebarWithViewport = (event: MediaQueryListEvent) => {
-      setSidebarCollapsed(event.matches);
-    };
-
-    mediaQuery.addEventListener("change", syncSidebarWithViewport);
-    return () => mediaQuery.removeEventListener("change", syncSidebarWithViewport);
-  }, []);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("swritor-dir");
@@ -127,111 +113,19 @@ function AppContent() {
       class={`app-layout${sidebarCollapsed ? " app-layout-sidebar-collapsed" : ""}`}
       full-height
     >
-      <mdui-navigation-drawer
-        class={`app-sidebar${sidebarCollapsed ? " app-sidebar-collapsed" : ""}`}
-        open
-        contained
-      >
-        <div className="app-sidebar-header">
-          {!sidebarCollapsed && (
-            <div className="app-sidebar-title">
-              <h1>Swritor</h1>
-              <p title={blogDir}>{blogDir.split(/[/\\]/).pop()}</p>
-            </div>
-          )}
-          <mdui-tooltip content={sidebarCollapsed ? "展开侧栏" : "收起侧栏"} placement="right" trigger="hover">
-            <mdui-button-icon
-              icon={sidebarCollapsed ? "menu" : "menu_open"}
-              aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
-              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            />
-          </mdui-tooltip>
-        </div>
-        <mdui-list>
-          <mdui-tooltip content="控制中心" placement="right" trigger="hover" disabled={!sidebarCollapsed}>
-            <mdui-list-item
-              active={page === "control" ? true : undefined}
-              onClick={() => setPage("control")}
-              icon="dashboard"
-              aria-label="控制中心"
-            >
-              控制中心
-            </mdui-list-item>
-          </mdui-tooltip>
-          <mdui-tooltip content="文章" placement="right" trigger="hover" disabled={!sidebarCollapsed}>
-            <mdui-list-item
-              active={page === "posts" ? true : undefined}
-              onClick={() => setPage("posts")}
-              icon="article"
-              aria-label="文章"
-            >
-              文章
-            </mdui-list-item>
-          </mdui-tooltip>
-          <mdui-tooltip content="相册" placement="right" trigger="hover" disabled={!sidebarCollapsed}>
-            <mdui-list-item
-              active={page === "albums" ? true : undefined}
-              onClick={() => setPage("albums")}
-              icon="photo_library"
-              aria-label="相册"
-            >
-              相册
-            </mdui-list-item>
-          </mdui-tooltip>
-          <mdui-tooltip content="设置" placement="right" trigger="hover" disabled={!sidebarCollapsed}>
-            <mdui-list-item
-              active={page === "settings" ? true : undefined}
-              onClick={() => setPage("settings")}
-              icon="settings"
-              aria-label="设置"
-            >
-              设置
-            </mdui-list-item>
-          </mdui-tooltip>
-        </mdui-list>
-        <div className="app-sidebar-actions">
-          {sidebarCollapsed ? (
-            <>
-              <mdui-tooltip content="初始化新博客" placement="right" trigger="hover">
-                <mdui-button-icon icon="add_box" aria-label="初始化新博客" onClick={() => setShowInit(true)} />
-              </mdui-tooltip>
-              <mdui-tooltip content="切换目录" placement="right" trigger="hover">
-                <mdui-button-icon icon="folder_open" aria-label="切换目录" onClick={selectBlogDir} />
-              </mdui-tooltip>
-              {isConfigured && (isLoggedIn ? (
-                <mdui-tooltip content="退出登录" placement="right" trigger="hover">
-                  <mdui-button-icon icon="logout" aria-label="退出登录" onClick={logout} />
-                </mdui-tooltip>
-              ) : (
-                <mdui-tooltip content="登录" placement="right" trigger="hover">
-                  <mdui-button-icon icon="person" aria-label="登录" onClick={() => setAuthDialogMode("login")} />
-                </mdui-tooltip>
-              ))}
-            </>
-          ) : (
-            <>
-              <mdui-button variant="text" full-width onClick={() => setShowInit(true)}>
-                初始化新博客
-              </mdui-button>
-              <mdui-button variant="text" full-width onClick={selectBlogDir}>
-                切换目录
-              </mdui-button>
-              {isConfigured && (isLoggedIn ? (
-                <div className="flex items-center justify-between pt-1">
-                  <p className="text-xs text-gray-500 truncate">
-                    {user?.siteSlug ? `${user.siteSlug}.spage.me` : "已登录"}
-                  </p>
-                  <mdui-button-icon icon="logout" aria-label="退出登录" onClick={logout} />
-                </div>
-              ) : (
-                <mdui-button variant="text" icon="person" onClick={() => setAuthDialogMode("login")}>
-                  登录
-                </mdui-button>
-              ))}
-            </>
-          )}
-        </div>
-      </mdui-navigation-drawer>
+      <AppSidebar
+        page={page}
+        setPage={setPage}
+        blogDir={blogDir}
+        isConfigured={isConfigured}
+        isLoggedIn={isLoggedIn}
+        user={user}
+        logout={logout}
+        onInit={() => setShowInit(true)}
+        selectBlogDir={selectBlogDir}
+        onLogin={() => setAuthDialogMode("login")}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
       <mdui-layout-main>
         {page === "control" && <ControlCenter blogDir={blogDir} />}

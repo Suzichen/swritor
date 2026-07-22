@@ -158,6 +158,8 @@ mdui-navigation-drawer.app-sidebar-collapsed {
     display: none;
   }
 
+  /* MDUI's layout manager writes padding inline; !important is required to
+     keep the persistent rail width when MDUI switches to mobile mode. */
   .app-layout mdui-layout-main {
     padding-left: 240px !important;
   }
@@ -200,6 +202,8 @@ mdui-navigation-drawer.app-sidebar-collapsed {
   width: 100%;
 }
 
+
+
 .app-sidebar-collapsed mdui-list-item::part(container) {
   justify-content: center;
   padding-right: 0;
@@ -208,7 +212,6 @@ mdui-navigation-drawer.app-sidebar-collapsed {
 
 .app-sidebar-collapsed mdui-list-item::part(body) {
   display: none;
-  flex: 0 0 0;
 }
 
 .app-sidebar-collapsed mdui-list-item::part(icon) {
@@ -235,6 +238,21 @@ mdui-navigation-drawer.app-sidebar-collapsed {
 .app-sidebar-actions mdui-tooltip {
   display: block;
   width: 100%;
+}
+
+.app-sidebar-collapsed .app-sidebar-actions mdui-tooltip {
+  width: auto;
+}
+
+.app-sidebar-account {
+  min-width: 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 12px;
+}
+
+.app-sidebar-account p {
+  min-width: 0;
+  margin: 0;
 }
 
 mdui-navigation-drawer.album-settings-drawer::part(panel) {
