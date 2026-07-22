@@ -676,6 +676,7 @@ mdui-card.settings-panel {
 
 /* Workspace pages */
 .workspace-page {
+  container-type: inline-size;
   box-sizing: border-box;
   min-height: 100%;
   padding: 32px clamp(20px, 4vw, 64px) 64px;
@@ -715,6 +716,7 @@ mdui-card.settings-panel {
 }
 
 mdui-card.control-card {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -810,20 +812,28 @@ mdui-card.control-card::part(container) {
 }
 
 .control-card-actions-group {
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: 112px 136px;
   gap: 10px;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.control-build-button,
+.control-deploy-button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .control-build-button {
-  flex: 0 0 112px;
-  width: 112px;
+  display: block;
 }
 
 .control-deploy-button {
   display: block;
-  flex: 0 0 136px;
-  width: 136px;
-  min-width: 136px;
 }
 
 .control-deploy-button mdui-dropdown {
@@ -1053,13 +1063,31 @@ mdui-card.post-empty-state {
   font-size: 14px;
 }
 
-@media (max-width: 1040px) {
+@container (max-width: 1040px) {
   .control-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .control-card-serve {
     grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 600px) {
+  .control-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .control-card-serve {
+    grid-column: auto;
+  }
+}
+
+@container (max-width: 308px) {
+  .control-card-actions-group {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
   }
 }
 
@@ -1102,14 +1130,8 @@ mdui-card.post-empty-state {
   }
 
   .control-card-actions-group {
-    flex-wrap: wrap;
-  }
-
-  .control-card-actions-group .control-build-button,
-  .control-card-actions-group .control-deploy-button {
-    flex: 1 1 100%;
+    grid-template-columns: minmax(0, 1fr);
     width: 100%;
-    min-width: 0;
   }
 
   .post-row {
