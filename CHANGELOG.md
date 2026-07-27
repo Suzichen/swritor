@@ -3,8 +3,12 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)
 
 ## [Unreleased]
-重构设置页面，提升稳定性
-重构应用侧栏。
+
+## [v0.2.3] - 2026-07-27
+
+### Feature
+UI焕新！🎉
+优化了代码并提升了稳定性
 
 ## [v0.2.2] - 2026-07-08
 
