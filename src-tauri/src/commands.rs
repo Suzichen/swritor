@@ -76,8 +76,9 @@ pub async fn list_posts(blog_dir: String) -> Result<Vec<PostSummary>, String> {
                 continue;
             }
             if let Ok(content) = fs::read_to_string(&path) {
-                let summary = parse_post_summary(&path, &content, timezone.as_deref());
-                posts.push(summary);
+                if let Ok(summary) = parse_post_summary(&path, &content, timezone.as_deref()) {
+                    posts.push(summary);
+                }
             }
         }
     }
@@ -93,7 +94,7 @@ pub async fn get_post(blog_dir: String, filename: String) -> Result<PostDetail, 
     }
     let raw = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let timezone = read_blog_timezone(Path::new(&blog_dir));
-    Ok(parse_post_detail(&filename, &raw, timezone.as_deref()))
+    parse_post_detail(&filename, &raw, timezone.as_deref())
 }
 
 #[tauri::command]
@@ -326,201 +327,45 @@ pub async fn read_directory_tree(path: String) -> Result<FileNode, String> {
 
 // ── 内部辅助 ─────────────────────────────────────────────
 
-fn parse_post_summary(path: &Path, content: &str, timezone: Option<&str>) -> PostSummary {
+fn parse_post_summary(
+    path: &Path,
+    content: &str,
+    timezone: Option<&str>,
+) -> Result<PostSummary, String> {
     let filename = path.file_name().unwrap().to_string_lossy().to_string();
-    let (frontmatter, body) =
-        spage_engine::frontmatter::parse_frontmatter(content, &filename).unwrap_or_default();
-    let title = frontmatter
-        .title
-        .unwrap_or_else(|| filename.replace(".md", ""));
-    let date = frontmatter
-        .date
-        .as_deref()
-        .map(|date| spage_engine::timezone::format_date(date, timezone))
-        .unwrap_or_default();
-    let preview = frontmatter
-        .preview
-        .or(frontmatter.description)
-        .or(frontmatter.excerpt)
-        .unwrap_or_else(|| build_post_preview(body, 140));
-    let tags = frontmatter.tags;
-    let categories = frontmatter.categories;
-    PostSummary {
+    let metadata = spage_engine::parse_post_metadata(&filename, content, timezone)
+        .map_err(|error| error.to_string())?;
+
+    Ok(PostSummary {
         filename,
-        title,
-        date,
-        tags,
-        categories,
-        preview,
-    }
-}
-
-fn build_post_preview(body: &str, max_chars: usize) -> String {
-    let plain = strip_markdown(body);
-    let trimmed = plain.trim();
-    if trimmed.chars().count() > max_chars {
-        format!("{}...", trimmed.chars().take(max_chars).collect::<String>())
-    } else {
-        trimmed.to_string()
-    }
-}
-
-fn strip_markdown(body: &str) -> String {
-    let mut result = String::with_capacity(body.len());
-    let chars: Vec<char> = body.chars().collect();
-    let mut index = 0;
-
-    while index < chars.len() {
-        if starts_with(&chars, index, "```") {
-            index += 3;
-            while index < chars.len() && !starts_with(&chars, index, "```") {
-                index += 1;
-            }
-            index = (index + 3).min(chars.len());
-            continue;
-        }
-
-        if chars[index] == '`' {
-            index += 1;
-            while index < chars.len() && chars[index] != '`' {
-                index += 1;
-            }
-            index = (index + 1).min(chars.len());
-            continue;
-        }
-
-        if starts_with(&chars, index, "![") {
-            index = skip_markdown_target(&chars, index + 2);
-            continue;
-        }
-
-        if chars[index] == '[' {
-            let text_start = index + 1;
-            let text_end = find_char(&chars, text_start, ']');
-            if text_end < chars.len() && text_end + 1 < chars.len() && chars[text_end + 1] == '(' {
-                result.extend(chars[text_start..text_end].iter());
-                index = (find_char(&chars, text_end + 2, ')') + 1).min(chars.len());
-                continue;
-            }
-        }
-
-        if chars[index] == '#' && (index == 0 || chars[index - 1] == '\n') {
-            while index < chars.len() && chars[index] == '#' {
-                index += 1;
-            }
-            if index < chars.len() && chars[index] == ' ' {
-                index += 1;
-            }
-            continue;
-        }
-
-        if index + 1 < chars.len()
-            && ((chars[index] == '*' && chars[index + 1] == '*')
-                || (chars[index] == '_' && chars[index + 1] == '_'))
-        {
-            let marker = chars[index];
-            if let Some(end) = find_marker(&chars, index + 2, marker, 2) {
-                result.extend(chars[index + 2..end].iter());
-                index = end + 2;
-                continue;
-            }
-        }
-
-        if (chars[index] == '*' || chars[index] == '_')
-            && index + 1 < chars.len()
-            && chars[index + 1] != ' '
-            && chars[index + 1] != chars[index]
-        {
-            let marker = chars[index];
-            if let Some(end) = find_marker(&chars, index + 1, marker, 1) {
-                result.extend(chars[index + 1..end].iter());
-                index = end + 1;
-                continue;
-            }
-        }
-
-        if chars[index] == '\r' || chars[index] == '\n' {
-            while index < chars.len() && (chars[index] == '\r' || chars[index] == '\n') {
-                index += 1;
-            }
-            result.push(' ');
-            continue;
-        }
-
-        result.push(chars[index]);
-        index += 1;
-    }
-
-    result
-}
-
-fn starts_with(chars: &[char], index: usize, pattern: &str) -> bool {
-    let pattern_len = pattern.chars().count();
-    chars.len() - index >= pattern_len
-        && chars[index..]
-            .iter()
-            .copied()
-            .zip(pattern.chars())
-            .all(|(actual, expected)| actual == expected)
-}
-
-fn find_char(chars: &[char], start: usize, target: char) -> usize {
-    chars[start..]
-        .iter()
-        .position(|character| *character == target)
-        .map(|offset| start + offset)
-        .unwrap_or(chars.len())
-}
-
-fn skip_markdown_target(chars: &[char], start: usize) -> usize {
-    let label_end = find_char(chars, start, ']');
-    if label_end == chars.len() {
-        return chars.len();
-    }
-    if label_end + 1 < chars.len() && chars[label_end + 1] == '(' {
-        let target_end = find_char(chars, label_end + 2, ')');
-        return (target_end + 1).min(chars.len());
-    }
-    label_end + 1
-}
-
-fn find_marker(chars: &[char], start: usize, marker: char, width: usize) -> Option<usize> {
-    (start..chars.len()).find(|&index| {
-        index + width <= chars.len()
-            && chars[index..index + width]
-                .iter()
-                .all(|character| *character == marker)
+        title: metadata.title,
+        date: metadata.date,
+        tags: metadata.tags,
+        categories: metadata.categories,
+        preview: metadata.summary,
     })
 }
 
-fn parse_post_detail(filename: &str, raw: &str, timezone: Option<&str>) -> PostDetail {
-    let (frontmatter, body) =
-        spage_engine::frontmatter::parse_frontmatter(raw, filename).unwrap_or_default();
-    let title = frontmatter
-        .title
-        .unwrap_or_else(|| filename.replace(".md", ""));
-    let date = frontmatter
-        .date
-        .as_deref()
-        .map(|date| spage_engine::timezone::format_date(date, timezone))
-        .unwrap_or_default();
-    let preview = frontmatter
-        .preview
-        .or(frontmatter.description)
-        .or(frontmatter.excerpt)
-        .unwrap_or_else(|| build_post_preview(body, 140));
-    let tags = frontmatter.tags;
-    let categories = frontmatter.categories;
-    PostDetail {
+fn parse_post_detail(
+    filename: &str,
+    raw: &str,
+    timezone: Option<&str>,
+) -> Result<PostDetail, String> {
+    let metadata = spage_engine::parse_post_metadata(filename, raw, timezone)
+        .map_err(|error| error.to_string())?;
+    let (_, body) = spage_engine::frontmatter::parse_frontmatter(raw, filename)
+        .map_err(|error| error.to_string())?;
+
+    Ok(PostDetail {
         filename: filename.to_string(),
-        title,
-        date,
-        tags,
-        categories,
-        preview,
+        title: metadata.title,
+        date: metadata.date,
+        tags: metadata.tags,
+        categories: metadata.categories,
+        preview: metadata.summary,
         content: body.to_string(),
         raw: raw.to_string(),
-    }
+    })
 }
 
 fn read_blog_timezone(blog_dir: &Path) -> Option<String> {
@@ -551,83 +396,7 @@ fn first_photo(path: &Path) -> Option<String> {
         .map(|e| e.file_name().to_string_lossy().to_string())
 }
 
-#[cfg(test)]
-mod post_tests {
-    use super::*;
 
-    #[test]
-    fn preview_matches_spage_markdown_cleanup() {
-        let body = "## Heading\nBefore ![alt](image.png) [link](https://example.com) **bold** _italic_ `inline`\n```rust\nlet hidden = true;\n```\nAfter";
-
-        assert_eq!(
-            build_post_preview(body, 140),
-            "Heading Before  link bold italic   After"
-        );
-    }
-
-    #[test]
-    fn preview_preserves_unclosed_emphasis_markers() {
-        assert_eq!(
-            build_post_preview("This is *unclosed", 140),
-            "This is *unclosed"
-        );
-        assert_eq!(
-            build_post_preview("This is **unclosed", 140),
-            "This is **unclosed"
-        );
-    }
-
-    #[test]
-    fn preview_preserves_brackets_that_are_not_links() {
-        assert_eq!(
-            build_post_preview("Before [text] after", 140),
-            "Before [text] after"
-        );
-        assert_eq!(
-            build_post_preview("Before [unclosed", 140),
-            "Before [unclosed"
-        );
-    }
-
-    #[test]
-    fn preview_matches_spage_for_adjacent_bold_markers() {
-        assert_eq!(
-            build_post_preview("Before **** after", 140),
-            "Before  after"
-        );
-    }
-
-    #[test]
-    fn preview_truncates_cjk_by_character_count() {
-        let preview = build_post_preview(&"你".repeat(200), 140);
-
-        assert_eq!(preview.trim_end_matches("...").chars().count(), 140);
-        assert!(preview.ends_with("..."));
-    }
-
-    #[test]
-    fn summary_and_detail_share_spage_preview_priority() {
-        let raw = "---\ntitle: Post\ndate: 2025-01-01\ndescription: Description\nexcerpt: Excerpt\ntags: rust, web\ncategories: [Development]\n---\nBody";
-        let path = Path::new("post.md");
-
-        let summary = parse_post_summary(path, raw, None);
-        let detail = parse_post_detail("post.md", raw, None);
-
-        assert_eq!(summary.preview, "Description");
-        assert_eq!(detail.preview, summary.preview);
-        assert_eq!(summary.date, "2025-01-01T00:00:00");
-        assert_eq!(detail.date, summary.date);
-        assert_eq!(summary.tags, vec!["rust", "web"]);
-    }
-
-    #[test]
-    fn dates_follow_spage_timezone_formatting() {
-        let raw = "---\ndate: 2025-01-01T09:00:00Z\n---\nBody";
-        let summary = parse_post_summary(Path::new("post.md"), raw, Some("Asia/Tokyo"));
-
-        assert_eq!(summary.date, "2025-01-01T18:00:00");
-    }
-}
 
 fn count_photos(path: &Path) -> usize {
     let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
