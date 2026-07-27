@@ -18,43 +18,7 @@ interface Props {
   size?: DeployButtonSize;
 }
 
-interface SizeSpec {
-  height: number;
-  radius: number;
-  font: number;
-  gap: number;
-  rocket: number;
-  arrow: number;
-  padMain: string;
-  padArrow: string;
-  /** whether the dropdown menu uses mdui's dense (compact) item layout. */
-  denseMenu: boolean;
-}
 
-const SIZES: Record<DeployButtonSize, SizeSpec> = {
-  medium: {
-    height: 40,
-    radius: 20,
-    font: 14,
-    gap: 6,
-    rocket: 18,
-    arrow: 20,
-    padMain: "0 12px 0 16px",
-    padArrow: "0 8px",
-    denseMenu: false,
-  },
-  small: {
-    height: 32,
-    radius: 16,
-    font: 13,
-    gap: 4,
-    rocket: 16,
-    arrow: 18,
-    padMain: "0 8px 0 12px",
-    padArrow: "0 6px",
-    denseMenu: true,
-  },
-};
 
 /**
  * Material 3 style split-button ("部署到"). MDUI does not ship a split-button,
@@ -70,7 +34,6 @@ const SIZES: Record<DeployButtonSize, SizeSpec> = {
  */
 export function DeployButton({ sites, disabled, disabledReason, onSelect, label = "部署到", size = "medium" }: Props) {
   const dropdownRef = useRef<HTMLElement & { open: boolean }>(null);
-  const s = SIZES[size];
   const isDisabled = disabled || sites.length === 0;
   const tooltip = disabledReason ?? (sites.length === 0 ? "请先在设置中创建站点" : "暂不可部署");
 
@@ -78,28 +41,11 @@ export function DeployButton({ sites, disabled, disabledReason, onSelect, label 
     return (
       <div
         title={tooltip}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: s.gap,
-          boxSizing: "border-box",
-          width: "100%",
-          whiteSpace: "nowrap",
-          height: s.height,
-          padding: `0 ${size === "small" ? 12 : 16}px`,
-          borderRadius: s.radius,
-          background: "rgba(0,0,0,0.12)",
-          color: "rgba(0,0,0,0.38)",
-          cursor: "not-allowed",
-          fontSize: s.font,
-          fontWeight: 500,
-          userSelect: "none",
-        }}
+        className={`deploy-button deploy-button-${size} is-disabled`}
       >
-        <mdui-icon name="rocket_launch" style={{ fontSize: s.rocket }} />
+        <mdui-icon class="deploy-button-rocket" name="rocket_launch" />
         {label}
-        <mdui-icon name="arrow_drop_down" style={{ fontSize: s.arrow }} />
+        <mdui-icon class="deploy-button-arrow" name="arrow_drop_down" />
       </div>
     );
   }
@@ -110,34 +56,17 @@ export function DeployButton({ sites, disabled, disabledReason, onSelect, label 
 
   return (
     <mdui-dropdown ref={dropdownRef} placement="bottom-end">
-      <div
-        slot="trigger"
-        style={{
-          display: "flex",
-          alignItems: "stretch",
-          width: "100%",
-          boxSizing: "border-box",
-          height: s.height,
-          borderRadius: s.radius,
-          overflow: "hidden",
-          cursor: "pointer",
-          background: "rgb(var(--mdui-color-primary))",
-          color: "rgb(var(--mdui-color-on-primary))",
-          fontSize: s.font,
-          fontWeight: 500,
-          userSelect: "none",
-        }}
-      >
-        <div style={{ display: "flex", flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", gap: s.gap, padding: s.padMain, whiteSpace: "nowrap" }}>
-          <mdui-icon name="rocket_launch" style={{ fontSize: s.rocket }} />
+      <div slot="trigger" className={`deploy-button deploy-button-${size}`}>
+        <div className="deploy-button-main">
+          <mdui-icon class="deploy-button-rocket" name="rocket_launch" />
           {label}
         </div>
-        <div style={{ width: 1, background: "rgba(255,255,255,0.4)" }} />
-        <div style={{ display: "flex", flex: "0 0 auto", alignItems: "center", padding: s.padArrow }}>
-          <mdui-icon name="arrow_drop_down" style={{ fontSize: s.arrow }} />
+        <div className="deploy-button-divider" />
+        <div className="deploy-button-menu">
+          <mdui-icon class="deploy-button-arrow" name="arrow_drop_down" />
         </div>
       </div>
-      <mdui-menu dense={s.denseMenu || undefined}>
+      <mdui-menu dense={size === "small" || undefined}>
         {sites.map((site) => (
           <mdui-menu-item
             key={site.siteSlug}

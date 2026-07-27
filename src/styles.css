@@ -822,18 +822,11 @@ mdui-card.control-card::part(container) {
 
 .control-build-button,
 .control-deploy-button {
+  display: block;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-}
-
-.control-build-button {
-  display: block;
-}
-
-.control-deploy-button {
-  display: block;
 }
 
 .control-deploy-button mdui-dropdown {
@@ -851,6 +844,95 @@ mdui-card.control-card::part(container) {
 
 .control-deploy-button [slot="trigger"] {
   justify-content: center;
+}
+
+.deploy-button {
+  display: flex;
+  box-sizing: border-box;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  overflow: hidden;
+  color: rgb(var(--mdui-color-on-primary));
+  font-size: 14px;
+  font-weight: 500;
+  background: rgb(var(--mdui-color-primary));
+  border-radius: 20px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.deploy-button-small {
+  height: 32px;
+  font-size: 13px;
+  border-radius: 16px;
+}
+
+.deploy-button.is-disabled {
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  color: rgba(0, 0, 0, 0.38);
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.12);
+  cursor: not-allowed;
+}
+
+.deploy-button-small.is-disabled {
+  gap: 4px;
+  padding-inline: 12px;
+}
+
+.deploy-button-main,
+.deploy-button-menu {
+  display: flex;
+  align-items: center;
+}
+
+.deploy-button-main {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 12px 0 16px;
+  white-space: nowrap;
+}
+
+.deploy-button-menu {
+  flex: 0 0 auto;
+  padding: 0 8px;
+}
+
+.deploy-button-small .deploy-button-main {
+  gap: 4px;
+  padding: 0 8px 0 12px;
+}
+
+.deploy-button-small .deploy-button-menu {
+  padding-inline: 6px;
+}
+
+.deploy-button-divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.deploy-button-rocket {
+  font-size: 18px;
+}
+
+.deploy-button-arrow {
+  font-size: 20px;
+}
+
+.deploy-button-small .deploy-button-rocket {
+  font-size: 16px;
+}
+
+.deploy-button-small .deploy-button-arrow {
+  font-size: 18px;
 }
 
 /* Post list */
@@ -1117,15 +1199,6 @@ mdui-card.post-empty-state {
   .workspace-header p {
     margin-top: 4px;
     font-size: 12px;
-  }
-
-  .control-card-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .control-card-serve {
-    grid-column: auto;
   }
 
   mdui-card.control-card {
