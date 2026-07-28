@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [v0.2.4] - 2026-07-27
+
+### Feature
+优化发布产物命名
+
+### Fixed
+macOS 签名导致的aarch64.dmg产物无法安装问题
+
 ## [v0.2.3] - 2026-07-27
 
 ### Feature

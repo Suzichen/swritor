@@ -39,10 +39,13 @@ jobs:
         include:
           - platform: windows-latest
             args: ''
+            asset_name: 'Swritor-windows-[arch][setup][ext]'
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
+            asset_name: 'Swritor-macos-[arch][ext]'
           - platform: macos-latest
             args: '--target x86_64-apple-darwin'
+            asset_name: 'Swritor-macos-[arch][ext]'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -67,7 +70,7 @@ jobs:
         run: npm ci
 
       - name: Build and release
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PB_BASE_URL: ${{ vars.PB_BASE_URL }}
@@ -78,4 +81,5 @@ jobs:
           releaseBody: ${{ needs.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
+          releaseAssetNamePattern: ${{ matrix.asset_name }}
           args: ${{ matrix.args }}
