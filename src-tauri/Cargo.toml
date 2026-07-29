@@ -1,6 +1,6 @@
 [package]
 name = "swritor"
-version = "0.2.6"
+version = "0.2.7"
 description = "Swritor - 创作•管理•分享"
 authors = ["Spage Team"]
 edition = "2021"
@@ -30,6 +30,8 @@ jsonc-parser = { version = "0.33", features = ["cst", "serde_json"] }
 spage-scaffold = { git = "https://github.com/Suzichen/spage.git", subdirectory = "crates/spage-scaffold" }
 spage-engine = { git = "https://github.com/Suzichen/spage.git", subdirectory = "crates/spage-engine" }
 tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]

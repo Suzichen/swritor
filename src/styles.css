@@ -1030,7 +1030,45 @@ mdui-card.settings-panel {
   padding-top: 18px;
 }
 
+.app-update-dialog {
+  width: min(520px, 80vw);
+}
 
+.app-update-dialog > p {
+  margin: 0;
+  color: var(--mdui-color-on-surface-variant);
+  line-height: 1.6;
+}
+
+.app-update-notes {
+  max-height: 220px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  overflow-y: auto;
+  color: var(--mdui-color-on-surface);
+  background: var(--mdui-color-surface-container-low);
+  border: 1px solid var(--mdui-color-outline-variant);
+  border-radius: 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.app-update-progress {
+  margin-top: 20px;
+}
+
+.app-update-progress > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 13px;
+}
+
+.app-update-progress mdui-linear-progress {
+  width: 100%;
+}
 
 @media (max-width: 600px) {
   .settings-header {

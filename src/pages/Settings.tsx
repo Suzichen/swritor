@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useAuth } from "../hooks/useAuth";
 import {
   parseConfig,
@@ -65,12 +69,19 @@ export function Settings({ blogDir }: Props) {
   const [engineVersion, setEngineVersion] = useState("");
   const [templateVersion, setTemplateVersion] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  const [checkingAppUpdate, setCheckingAppUpdate] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
 
   useEffect(() => { loadConfig(); }, [blogDir]);
 
   const handleCopyEnv = () => {
     const info = [
       `博客目录: ${blogDir}`,
+      `Swritor: ${appVersion || "未知"}`,
       `@s-page/core: ${shellVersion ?? "未缓存"}`,
       `@s-page/engine: ${engineVersion}`,
       `模板版本: ${templateVersion}`,
@@ -116,6 +127,7 @@ export function Settings({ blogDir }: Props) {
     setEngineVersion(ev);
     const cv = await invoke<string>("get_template_version");
     setTemplateVersion(cv);
+    setAppVersion(await getVersion());
   };
 
   const handleSave = async () => {
@@ -211,6 +223,57 @@ export function Settings({ blogDir }: Props) {
       setTimeout(() => setSnackOpen(false), 3000);
     }
     setUpdating(false);
+  };
+
+  const handleCheckAppUpdate = async () => {
+    setCheckingAppUpdate(true);
+    try {
+      const update = await check();
+      if (!update) {
+        setSnackMsg("当前已是最新版本");
+        setSnackOpen(true);
+        setTimeout(() => setSnackOpen(false), 2000);
+        return;
+      }
+
+      setAvailableUpdate(update);
+      setUpdateProgress(null);
+      setUpdateDialogOpen(true);
+    } catch (e: unknown) {
+      setSnackMsg(`检查更新失败: ${String(e)}`);
+      setSnackOpen(true);
+      setTimeout(() => setSnackOpen(false), 4000);
+    } finally {
+      setCheckingAppUpdate(false);
+    }
+  };
+
+  const handleInstallAppUpdate = async () => {
+    if (!availableUpdate) return;
+
+    setInstallingUpdate(true);
+    setUpdateProgress(0);
+    let downloaded = 0;
+    let contentLength = 0;
+
+    try {
+      await availableUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          contentLength = event.data.contentLength ?? 0;
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setUpdateProgress(contentLength > 0 ? downloaded / contentLength : null);
+        } else if (event.event === "Finished") {
+          setUpdateProgress(1);
+        }
+      });
+      await relaunch();
+    } catch (e: unknown) {
+      setSnackMsg(`安装更新失败: ${String(e)}`);
+      setSnackOpen(true);
+      setTimeout(() => setSnackOpen(false), 5000);
+      setInstallingUpdate(false);
+    }
   };
 
   const selectImage = async (target: "logo" | "favicon") => {
@@ -487,6 +550,21 @@ export function Settings({ blogDir }: Props) {
             <SettingsPanel icon="info" title="应用信息" description="查看当前环境与博客依赖版本。">
               <div className="settings-info-list">
                 <InfoRow
+                  label="Swritor"
+                  value={appVersion ? `v${appVersion}` : "未知"}
+                  action={
+                    <mdui-button
+                      variant="text"
+                      icon="system_update"
+                      loading={checkingAppUpdate || undefined}
+                      onClick={handleCheckAppUpdate}
+                    >
+                      检查更新
+                    </mdui-button>
+                  }
+                />
+                <mdui-divider />
+                <InfoRow
                   label="博客目录"
                   value={blogDir}
                   action={<mdui-button variant="text" icon="folder_open" onClick={() => invoke("open_in_explorer", { path: blogDir })}>打开</mdui-button>}
@@ -511,6 +589,56 @@ export function Settings({ blogDir }: Props) {
           </mdui-tab-panel>
         </mdui-tabs>
       </main>
+
+      <mdui-dialog
+        open={updateDialogOpen || undefined}
+        close-on-esc={!installingUpdate || undefined}
+        close-on-overlay-click={!installingUpdate || undefined}
+        onclose={() => {
+          if (!installingUpdate) setUpdateDialogOpen(false);
+        }}
+      >
+        <span slot="headline">发现新版本 v{availableUpdate?.version}</span>
+        <div slot="description" className="app-update-dialog">
+          <p>当前版本 v{appVersion}，可以直接下载并安装更新。</p>
+          {availableUpdate?.body && (
+            <div className="app-update-notes">{availableUpdate.body}</div>
+          )}
+          {installingUpdate && (
+            <div className="app-update-progress">
+              <div>
+                <span>正在下载并安装</span>
+                <span>{updateProgress === null ? "准备中" : `${Math.round(updateProgress * 100)}%`}</span>
+              </div>
+              <mdui-linear-progress value={updateProgress ?? undefined} />
+            </div>
+          )}
+        </div>
+        <mdui-button
+          slot="action"
+          variant="text"
+          disabled={installingUpdate || undefined}
+          onClick={() => openUrl("https://github.com/Suzichen/swritor/releases/latest")}
+        >
+          查看发布页
+        </mdui-button>
+        <mdui-button
+          slot="action"
+          variant="text"
+          disabled={installingUpdate || undefined}
+          onClick={() => setUpdateDialogOpen(false)}
+        >
+          稍后
+        </mdui-button>
+        <mdui-button
+          slot="action"
+          variant="filled"
+          loading={installingUpdate || undefined}
+          onClick={handleInstallAppUpdate}
+        >
+          下载并安装
+        </mdui-button>
+      </mdui-dialog>
 
       <mdui-snackbar open={snackOpen || undefined} placement="top">
         {snackMsg}

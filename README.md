@@ -137,6 +137,10 @@ swritor/
 
 ## 架构说明
 
+### 应用更新
+
+应用通过 Tauri Updater 检查并安装 GitHub Releases 中的新版本。发布工作流会生成 `latest.json`、更新包及签名文件，客户端在签名校验通过后完成安装并自动重启。更新版本统一通过 `.github/workflows/release.yml` 发布。
+
 ### 模板策略
 
 初始化博客时，`spage-scaffold` crate 使用编译时内嵌的模板文件。使用最新spage模板需更新 scaffold 依赖：
