@@ -167,7 +167,7 @@ spage-engine = { path = "../spage/crates/spage-engine" }
 
 - [x] 初始化博客项目（在线拉取模板）
 - [x] 编辑配置（config.json / album.config.json 可视化编辑）
-- [ ] 编写文章（专业Markdown 编辑器，frontmatter 表单）
+- [ ] 编写文章
   - [x] 基础编辑
   - [ ] frontmatter 表单
   - [ ] 专业Markdown 编辑器
