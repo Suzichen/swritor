@@ -9,6 +9,7 @@ use jsonc_parser::ParseOptions;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 use crate::error::AppError;
 use crate::models::*;
@@ -1336,6 +1337,29 @@ pub async fn open_url(url: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("无法打开浏览器: {e}"))?;
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn open_album_path(
+    app: AppHandle,
+    blog_dir: String,
+    dir: String,
+    filename: Option<String>,
+) -> Result<(), String> {
+    validate_album_dir(&dir)?;
+    let mut path = PathBuf::from(blog_dir).join("albums").join(dir);
+    if let Some(filename) = filename {
+        validate_photo_filename(&filename)?;
+        path.push(filename);
+    }
+    if !path.exists() {
+        return Err(format!("路径不存在: {}", path.display()));
+    }
+
+    app.opener()
+        .open_path(path.to_string_lossy().into_owned(), None::<&str>)
+        .map_err(|e| format!("无法打开路径: {e}"))?;
     Ok(())
 }
 

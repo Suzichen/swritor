@@ -204,6 +204,22 @@ export function Albums({ blogDir }: Props) {
     }
   };
 
+  const handleOpenPhoto = async (dir: string, filename: string) => {
+    try {
+      await invoke("open_album_path", { blogDir, dir, filename });
+    } catch (error) {
+      notify(`打开照片失败: ${String(error)}`);
+    }
+  };
+
+  const handleOpenAlbumDirectory = async (dir: string) => {
+    try {
+      await invoke("open_album_path", { blogDir, dir, filename: null });
+    } catch (error) {
+      notify(`打开相册目录失败: ${String(error)}`);
+    }
+  };
+
   const handlePreview = async (dir: string, event?: React.MouseEvent) => {
     event?.stopPropagation();
     try {
@@ -317,7 +333,19 @@ export function Albums({ blogDir }: Props) {
                         className="album-photo-item"
                         key={photo.filename}
                       >
-                        <div className="album-photo-media">
+                        <div
+                          className="album-photo-media"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`使用系统图片查看器打开 ${photo.filename}`}
+                          onClick={() => void handleOpenPhoto(selectedAlbum.dir, photo.filename)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              void handleOpenPhoto(selectedAlbum.dir, photo.filename);
+                            }
+                          }}
+                        >
                           <img
                             src={photoUrl(selectedAlbum.dir, photo.filename)}
                             alt={photo.filename}
@@ -501,6 +529,12 @@ export function Albums({ blogDir }: Props) {
                         void handleAddPhotosFor(album.dir);
                       }}>
                         追加照片
+                      </mdui-menu-item>
+                      <mdui-menu-item icon="folder_open" onClick={(event: any) => {
+                        event.stopPropagation();
+                        void handleOpenAlbumDirectory(album.dir);
+                      }}>
+                        打开相册文件夹
                       </mdui-menu-item>
                       <mdui-menu-item icon="visibility" onClick={(event: any) => handlePreview(album.dir, event)}>
                         预览

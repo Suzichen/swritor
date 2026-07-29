@@ -493,8 +493,6 @@ mdui-card.album-card:focus-visible {
   position: relative;
   overflow: hidden;
   min-width: 0;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 280px;
   background: rgb(var(--mdui-color-surface-container));
   border-radius: 6px;
 }

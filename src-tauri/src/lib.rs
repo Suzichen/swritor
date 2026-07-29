@@ -59,6 +59,7 @@ pub fn run() {
             check_sync_available,
             get_task_status,
             open_url,
+            open_album_path,
             get_shell_version,
             get_engine_version,
             get_template_version,
