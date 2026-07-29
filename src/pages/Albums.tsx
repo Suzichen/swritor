@@ -537,7 +537,7 @@ export function Albums({ blogDir }: Props) {
                         打开相册文件夹
                       </mdui-menu-item>
                       <mdui-menu-item icon="visibility" onClick={(event: any) => handlePreview(album.dir, event)}>
-                        预览
+                        在博客中预览
                       </mdui-menu-item>
                       <mdui-menu-item class="album-danger-menu-item" icon="delete" onClick={(event: any) => {
                         event.stopPropagation();

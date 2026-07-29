@@ -383,7 +383,7 @@ pub async fn write_config(
     content: String,
 ) -> Result<(), String> {
     let path = Path::new(&blog_dir).join(&filename);
-    fs::write(&path, &content).map_err(|e| e.to_string())
+    atomic_write(&path, content.as_bytes()).map_err(|e| e.to_string())
 }
 
 // ── 图片相关 ──────────────────────────────────────────────

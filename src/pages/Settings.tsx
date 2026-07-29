@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { useAuth } from "../hooks/useAuth";
 import {
   parseConfig,
   serializeConfig,
@@ -32,6 +33,7 @@ const SETTINGS_SECTIONS: { value: SettingsSection; label: string; icon: string }
 ];
 
 export function Settings({ blogDir }: Props) {
+  const { isLoggedIn } = useAuth();
   const configRef = useRef<any>(null);
   const profileFormRef = useRef<PersonalSettingsFormHandle>(null);
 
@@ -119,15 +121,18 @@ export function Settings({ blogDir }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const profileSaved = await profileFormRef.current?.saveProfile({
-        persistDefaults: false,
-        notify: false,
-      });
-      if (profileSaved === false) {
-        setSnackMsg("个人资料保存失败，请检查表单提示");
-        setSnackOpen(true);
-        setTimeout(() => setSnackOpen(false), 3000);
-        return;
+      if (isLoggedIn) {
+        const profileSaved = await profileFormRef.current?.saveProfile({
+          persistDefaults: false,
+          notify: false,
+        });
+        if (profileSaved === false) {
+          setSnackMsg("个人资料保存失败，请检查账户页表单提示");
+          setActiveSection("profile");
+          setSnackOpen(true);
+          setTimeout(() => setSnackOpen(false), 3000);
+          return;
+        }
       }
       if (pendingLogo) {
         const ext = pendingLogo.split(".").pop() || "png";

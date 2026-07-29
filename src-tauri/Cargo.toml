@@ -1,6 +1,6 @@
 [package]
 name = "swritor"
-version = "0.2.5"
+version = "0.2.6"
 description = "Swritor - 创作•管理•分享"
 authors = ["Spage Team"]
 edition = "2021"

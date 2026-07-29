@@ -161,8 +161,9 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
           ?? (persistDefaults && !user?.avatar
             ? localPublicAssetPath(blogDir, configLogo)
             : null);
-        if (trimmed !== (user?.name ?? "") || avatarPath) {
+        if (nameEdited || avatarPath) {
           await updateProfile(trimmed, avatarPath);
+          setNameEdited(false);
           if (avatarPath) setPendingAvatar(null);
         }
         if (slug) {
@@ -185,6 +186,7 @@ export const PersonalSettingsForm = forwardRef<PersonalSettingsFormHandle, Props
       configLogo,
       createSite,
       name,
+      nameEdited,
       pendingAvatar,
       profileReady,
       reloadSites,
