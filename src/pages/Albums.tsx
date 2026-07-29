@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { AlbumSettings } from "../components/settings/AlbumSettings";
+import { getPreviewAddress } from "../utils/preview";
 
 interface AlbumPhoto {
   filename: string;
@@ -24,6 +25,10 @@ type DeleteTarget =
   | { type: "album"; dir: string; label: string }
   | { type: "photo"; dir: string; filename: string };
 
+type PhotoMenu = { filename: string; x: number; y: number };
+
+const PHOTO_BATCH_SIZE = 120;
+
 export function Albums({ blogDir }: Props) {
   const [albums, setAlbums] = useState<AlbumInfo[]>([]);
   const [selectedDir, setSelectedDir] = useState<string | null>(null);
@@ -40,6 +45,9 @@ export function Albums({ blogDir }: Props) {
   const [editDesc, setEditDesc] = useState("");
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMessage, setSnackMessage] = useState("");
+  const [visiblePhotoCount, setVisiblePhotoCount] = useState(PHOTO_BATCH_SIZE);
+  const [photoMenu, setPhotoMenu] = useState<PhotoMenu | null>(null);
+  const photoLoadMoreRef = useRef<HTMLDivElement>(null);
 
   const selectedAlbum = albums.find((album) => album.dir === selectedDir) ?? null;
 
@@ -70,7 +78,32 @@ export function Albums({ blogDir }: Props) {
   useEffect(() => {
     setEditName(selectedAlbum?.name ?? "");
     setEditDesc(selectedAlbum?.desc ?? "");
+    setVisiblePhotoCount(PHOTO_BATCH_SIZE);
+    setPhotoMenu(null);
   }, [selectedAlbum?.dir, selectedAlbum?.name, selectedAlbum?.desc]);
+
+  useEffect(() => {
+    const sentinel = photoLoadMoreRef.current;
+    if (!sentinel || !selectedAlbum || visiblePhotoCount >= selectedAlbum.photos.length) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setVisiblePhotoCount((count) => Math.min(count + PHOTO_BATCH_SIZE, selectedAlbum.photos.length));
+      }
+    }, { rootMargin: "600px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [selectedAlbum?.dir, selectedAlbum?.photos.length, visiblePhotoCount]);
+
+  useEffect(() => {
+    if (!photoMenu) return;
+    const closeMenu = () => setPhotoMenu(null);
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [photoMenu]);
 
   const photoUrl = (dir: string, filename: string) =>
     convertFileSrc(`${blogDir}/albums/${dir}/${filename}`);
@@ -174,10 +207,7 @@ export function Albums({ blogDir }: Props) {
   const handlePreview = async (dir: string, event?: React.MouseEvent) => {
     event?.stopPropagation();
     try {
-      let addr = await invoke<string | null>("get_serve_status");
-      if (!addr) {
-        addr = await invoke<string>("start_serve", { blogDir, openBrowser: false });
-      }
+      const addr = await getPreviewAddress(blogDir);
       await invoke("open_url", { url: `${addr}/albums/${encodeURIComponent(dir)}/` });
     } catch (error) {
       notify(`打开预览失败: ${String(error)}`);
@@ -280,7 +310,7 @@ export function Albums({ blogDir }: Props) {
                 </div>
               ) : (
                 <div className="album-photo-grid">
-                  {selectedAlbum.photos.map((photo) => {
+                  {selectedAlbum.photos.slice(0, visiblePhotoCount).map((photo) => {
                     const isCover = selectedAlbum.configured_cover === photo.filename;
                     return (
                       <article
@@ -288,43 +318,28 @@ export function Albums({ blogDir }: Props) {
                         key={photo.filename}
                       >
                         <div className="album-photo-media">
-                          <img src={photoUrl(selectedAlbum.dir, photo.filename)} alt={photo.filename} />
+                          <img
+                            src={photoUrl(selectedAlbum.dir, photo.filename)}
+                            alt={photo.filename}
+                            loading="lazy"
+                            decoding="async"
+                          />
                           {isCover && <span className="album-cover-label">封面</span>}
-                          <div className="album-photo-menu-anchor" onClick={(event) => event.stopPropagation()}>
-                            <mdui-dropdown placement="bottom-end">
-                              <mdui-button-icon
-                                slot="trigger"
-                                icon="more_vert"
-                                aria-label={`管理 ${photo.filename}`}
-                                disabled={busy || undefined}
-                              />
-                              <mdui-menu dense>
-                                <mdui-menu-item
-                                  icon="image"
-                                  disabled={isCover || undefined}
-                                  onClick={(event: any) => {
-                                    event.stopPropagation();
-                                    void handleSetCover(photo.filename);
-                                  }}
-                                >
-                                  {isCover ? "当前封面" : "设为封面"}
-                                </mdui-menu-item>
-                                <mdui-menu-item
-                                  class="album-danger-menu-item"
-                                  icon="delete"
-                                  onClick={(event: any) => {
-                                    event.stopPropagation();
-                                    setDeleteTarget({
-                                      type: "photo",
-                                      dir: selectedAlbum.dir,
-                                      filename: photo.filename,
-                                    });
-                                  }}
-                                >
-                                  删除照片
-                                </mdui-menu-item>
-                              </mdui-menu>
-                            </mdui-dropdown>
+                          <div className="album-photo-menu-anchor">
+                            <mdui-button-icon
+                              icon="more_vert"
+                              aria-label={`管理 ${photo.filename}`}
+                              disabled={busy || undefined}
+                              onClick={(event: any) => {
+                                event.stopPropagation();
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                setPhotoMenu({
+                                  filename: photo.filename,
+                                  x: Math.max(8, Math.min(rect.right - 164, window.innerWidth - 172)),
+                                  y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 92)),
+                                });
+                              }}
+                            />
                           </div>
                         </div>
                         <div className="album-photo-toolbar">
@@ -335,8 +350,46 @@ export function Albums({ blogDir }: Props) {
                   })}
                 </div>
               )}
+              {selectedAlbum.photos.length > visiblePhotoCount && (
+                <div ref={photoLoadMoreRef} className="album-photo-load-more" aria-hidden="true" />
+              )}
             </section>
           </div>
+
+          {photoMenu && (
+            <mdui-menu
+              class="album-shared-photo-menu"
+              dense
+              style={{ left: photoMenu.x, top: photoMenu.y }}
+              onPointerDown={(event: any) => event.stopPropagation()}
+            >
+              <mdui-menu-item
+                icon="image"
+                disabled={selectedAlbum.configured_cover === photoMenu.filename || undefined}
+                onClick={() => {
+                  const filename = photoMenu.filename;
+                  setPhotoMenu(null);
+                  void handleSetCover(filename);
+                }}
+              >
+                {selectedAlbum.configured_cover === photoMenu.filename ? "当前封面" : "设为封面"}
+              </mdui-menu-item>
+              <mdui-menu-item
+                class="album-danger-menu-item"
+                icon="delete"
+                onClick={() => {
+                  setDeleteTarget({
+                    type: "photo",
+                    dir: selectedAlbum.dir,
+                    filename: photoMenu.filename,
+                  });
+                  setPhotoMenu(null);
+                }}
+              >
+                删除照片
+              </mdui-menu-item>
+            </mdui-menu>
+          )}
 
           <mdui-navigation-drawer
             class="album-info-drawer"
@@ -419,7 +472,12 @@ export function Albums({ blogDir }: Props) {
             >
               <div className="album-card-cover">
                 {album.cover ? (
-                  <img src={photoUrl(album.dir, album.cover)} alt={album.name || album.dir} />
+                  <img
+                    src={photoUrl(album.dir, album.cover)}
+                    alt={album.name || album.dir}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   <mdui-icon name="photo_library" />
                 )}

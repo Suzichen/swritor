@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getPreviewAddress } from "../utils/preview";
 
 interface PostDetail {
   filename: string;
@@ -39,10 +40,7 @@ export function PostEditor({ blogDir, filename, onBack }: Props) {
 
   const handlePreview = async () => {
     const slug = filename.replace(/\.md$/, "");
-    let addr = await invoke<string | null>("get_serve_status");
-    if (!addr) {
-      addr = await invoke<string>("start_serve", { blogDir, openBrowser: false });
-    }
+    const addr = await getPreviewAddress(blogDir);
     await invoke("open_url", { url: `${addr}/post/${slug}` });
   };
 

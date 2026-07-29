@@ -6,6 +6,7 @@ use crate::auth::AuthState;
 
 pub struct AppState {
     pub serve_handle: Mutex<Option<ServeHandle>>,
+    pub serve_blog_dir: Mutex<Option<String>>,
     pub build_running: Mutex<bool>,
     pub sync_running: Mutex<bool>,
     pub deploy_running: Mutex<bool>,
@@ -19,6 +20,7 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             serve_handle: Mutex::new(None),
+            serve_blog_dir: Mutex::new(None),
             build_running: Mutex::new(false),
             sync_running: Mutex::new(false),
             deploy_running: Mutex::new(false),

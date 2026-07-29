@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getPreviewAddress } from "../utils/preview";
 
 interface PostSummary {
   filename: string;
@@ -74,10 +75,7 @@ export function PostList({ blogDir, onEdit }: Props) {
   const handlePreview = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const slug = filename.replace(/\.md$/, "");
-    let addr = await invoke<string | null>("get_serve_status");
-    if (!addr) {
-      addr = await invoke<string>("start_serve", { blogDir, openBrowser: false });
-    }
+    const addr = await getPreviewAddress(blogDir);
     await invoke("open_url", { url: `${addr}/post/${slug}` });
   };
 

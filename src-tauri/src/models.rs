@@ -68,6 +68,12 @@ pub struct AlbumInfo {
     pub photos: Vec<AlbumPhoto>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServeStatus {
+    pub addr: String,
+    pub blog_dir: String,
+}
+
 /// 站点配置（前端读写用）
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SiteConfig {

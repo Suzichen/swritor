@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { sameDirectory, type ServeStatus } from "../utils/preview";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useAuth, type SiteInfo } from "../hooks/useAuth";
 import { DeployButton } from "../components/deploy/DeployButton";
@@ -75,14 +76,16 @@ export function ControlCenter({ blogDir }: Props) {
 
   // ── Init ──
   useEffect(() => {
-    invoke<string | null>("get_serve_status").then(setServeAddr);
+    invoke<ServeStatus | null>("get_serve_status").then((status) => {
+      setServeAddr(status && sameDirectory(status.blog_dir, blogDir) ? status.addr : null);
+    });
     // 恢复后台任务状态
     invoke<[boolean, boolean, boolean]>("get_task_status").then(([building, syncing, deploying]) => {
       if (building) setBuildState("building");
       if (syncing) setSyncState("syncing");
       if (deploying) setDeployState("running");
     });
-  }, []);
+  }, [blogDir]);
 
   useEffect(() => {
     invoke<boolean>("check_sync_available", { blogDir }).then(setSyncAvailable);

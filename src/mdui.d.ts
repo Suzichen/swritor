@@ -44,7 +44,13 @@ declare module "react" {
       "mdui-linear-progress": MduiBase & { value?: number; max?: number };
       "mdui-circular-progress": MduiBase;
       "mdui-divider": MduiBase;
-      "mdui-dialog": MduiBase & { open?: boolean; headline?: string; "close-on-overlay-click"?: boolean; "close-on-esc"?: boolean };
+      "mdui-dialog": MduiBase & {
+        open?: boolean;
+        headline?: string;
+        "close-on-overlay-click"?: boolean;
+        "close-on-esc"?: boolean;
+        onclose?: () => void;
+      };
       "mdui-text-field": MduiBase & {
         variant?: string;
         label?: string;

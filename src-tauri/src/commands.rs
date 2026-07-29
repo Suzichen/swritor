@@ -1,6 +1,11 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use jsonc_parser::cst::{CstInputValue, CstRootNode};
+use jsonc_parser::ParseOptions;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -278,16 +283,16 @@ pub async fn add_album_photos(
         if destination.exists() {
             return Err(format!("相册中已存在同名照片: {filename}"));
         }
-        if copies.iter().any(|(_, existing): &(PathBuf, String)| existing == &filename) {
+        if copies
+            .iter()
+            .any(|(_, existing): &(PathBuf, String)| existing == &filename)
+        {
             return Err(format!("选择了多个同名照片: {filename}"));
         }
         copies.push((source_path, filename));
     }
 
-    for (source, filename) in &copies {
-        fs::copy(source, album_dir.join(filename))
-            .map_err(|e| format!("复制照片 {filename} 失败: {e}"))?;
-    }
+    stage_and_commit_photos(&album_dir, &copies)?;
     Ok(copies.len())
 }
 
@@ -300,23 +305,32 @@ pub async fn delete_album_photo(
     validate_album_dir(&dir)?;
     validate_photo_filename(&filename)?;
     let blog_dir = Path::new(&blog_dir);
-    let photo_path = blog_dir.join("albums").join(&dir).join(&filename);
+    let album_dir = blog_dir.join("albums").join(&dir);
+    let photo_path = album_dir.join(&filename);
     if !photo_path.is_file() {
         return Err(format!("照片不存在: {filename}"));
     }
-    fs::remove_file(&photo_path).map_err(|e| format!("删除照片失败: {e}"))?;
 
     let mut config = read_album_config(blog_dir)?;
-    if find_album_entry(&config, &dir)
+    let clears_cover = find_album_entry(&config, &dir)
         .and_then(|album| album.get("cover"))
         .and_then(|cover| cover.as_str())
-        == Some(filename.as_str())
-    {
+        == Some(filename.as_str());
+    if clears_cover {
         if let Some(album) = find_album_entry_mut(&mut config, &dir) {
             album.remove("cover");
         }
-        write_album_config(blog_dir, &config)?;
     }
+
+    let trashed_path = unique_temp_path(&album_dir, "deleted-photo");
+    fs::rename(&photo_path, &trashed_path).map_err(|e| format!("暂存待删除照片失败: {e}"))?;
+    if clears_cover {
+        if let Err(error) = write_album_config(blog_dir, &config) {
+            let _ = fs::rename(&trashed_path, &photo_path);
+            return Err(error);
+        }
+    }
+    let _ = fs::remove_file(&trashed_path);
     Ok(())
 }
 
@@ -328,13 +342,25 @@ pub async fn delete_album(blog_dir: String, dir: String) -> Result<(), String> {
     if !album_dir.is_dir() {
         return Err(format!("相册不存在: {dir}"));
     }
-    fs::remove_dir_all(&album_dir).map_err(|e| format!("删除相册失败: {e}"))?;
-
     let mut config = read_album_config(blog_dir)?;
-    if let Some(albums) = config.get_mut("albums").and_then(|value| value.as_array_mut()) {
+    if let Some(albums) = config
+        .get_mut("albums")
+        .and_then(|value| value.as_array_mut())
+    {
         albums.retain(|album| album.get("dir").and_then(|value| value.as_str()) != Some(&dir));
     }
-    write_album_config(blog_dir, &config)
+
+    let albums_dir = album_dir
+        .parent()
+        .ok_or_else(|| "无法确定相册目录".to_string())?;
+    let trashed_dir = unique_temp_path(albums_dir, "deleted-album");
+    fs::rename(&album_dir, &trashed_dir).map_err(|e| format!("暂存待删除相册失败: {e}"))?;
+    if let Err(error) = write_album_config(blog_dir, &config) {
+        let _ = fs::rename(&trashed_dir, &album_dir);
+        return Err(error);
+    }
+    let _ = fs::remove_dir_all(&trashed_dir);
+    Ok(())
 }
 
 // ── 设置相关 ──────────────────────────────────────────────
@@ -537,8 +563,8 @@ fn read_album_config(blog_dir: &Path) -> Result<serde_json::Value, String> {
     json_comments::StripComments::new(raw.as_bytes())
         .read_to_string(&mut stripped)
         .map_err(|e| format!("解析相册配置失败: {e}"))?;
-    let mut config: serde_json::Value = serde_json::from_str(&stripped)
-        .map_err(|e| format!("解析相册配置失败: {e}"))?;
+    let mut config: serde_json::Value =
+        serde_json::from_str(&stripped).map_err(|e| format!("解析相册配置失败: {e}"))?;
     if !config.is_object() {
         return Err("相册配置必须是 JSON 对象".into());
     }
@@ -552,9 +578,286 @@ fn read_album_config(blog_dir: &Path) -> Result<serde_json::Value, String> {
 
 fn write_album_config(blog_dir: &Path, config: &serde_json::Value) -> Result<(), String> {
     let path = blog_dir.join("album.config.json");
-    let content = serde_json::to_string_pretty(config)
-        .map_err(|e| format!("序列化相册配置失败: {e}"))?;
-    fs::write(path, format!("{content}\n")).map_err(|e| format!("保存相册配置失败: {e}"))
+    let content = if path.is_file() {
+        let raw = fs::read_to_string(&path).map_err(|e| format!("读取相册配置失败: {e}"))?;
+        update_album_config_jsonc(&raw, config)?
+    } else {
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(config).map_err(|e| format!("序列化相册配置失败: {e}"))?
+        )
+    };
+    atomic_write(&path, content.as_bytes()).map_err(|e| format!("保存相册配置失败: {e}"))
+}
+
+fn update_album_config_jsonc(raw: &str, config: &serde_json::Value) -> Result<String, String> {
+    let root = CstRootNode::parse(raw, &ParseOptions::default())
+        .map_err(|e| format!("解析相册配置失败: {e}"))?;
+    let object = root
+        .object_value()
+        .ok_or_else(|| "相册配置必须是 JSON 对象".to_string())?;
+    let desired_albums = config
+        .get("albums")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "相册配置的 albums 必须是数组".to_string())?;
+    let Some(albums_property) = object.get("albums") else {
+        object.append(
+            "albums",
+            serde_value_to_cst(&serde_json::Value::Array(desired_albums.clone()))?,
+        );
+        return finish_jsonc_update(raw, root);
+    };
+    let Some(albums_array) = albums_property.array_value() else {
+        albums_property.set_value(serde_value_to_cst(&serde_json::Value::Array(
+            desired_albums.clone(),
+        ))?);
+        return finish_jsonc_update(raw, root);
+    };
+
+    let mut retained_dirs = HashSet::new();
+    for element in albums_array.elements() {
+        let Some(existing) = element.to_serde_value() else {
+            continue;
+        };
+        let Some(dir) = existing.get("dir").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let Some(desired) = desired_albums
+            .iter()
+            .find(|album| album.get("dir").and_then(serde_json::Value::as_str) == Some(dir))
+        else {
+            element.remove();
+            continue;
+        };
+        retained_dirs.insert(dir.to_string());
+        if let (Some(existing_object), Some(desired_object)) =
+            (element.as_object(), desired.as_object())
+        {
+            for field in ["name", "desc", "cover"] {
+                match (existing_object.get(field), desired_object.get(field)) {
+                    (Some(property), Some(value)) => property.set_value(serde_value_to_cst(value)?),
+                    (Some(property), None) => property.remove(),
+                    (None, Some(value)) => {
+                        existing_object.append(field, serde_value_to_cst(value)?);
+                    }
+                    (None, None) => {}
+                }
+            }
+        }
+    }
+    for album in desired_albums {
+        let Some(dir) = album.get("dir").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if !retained_dirs.contains(dir) {
+            albums_array.append(serde_value_to_cst(album)?);
+        }
+    }
+    albums_array.ensure_multiline();
+    finish_jsonc_update(raw, root)
+}
+
+fn finish_jsonc_update(raw: &str, root: CstRootNode) -> Result<String, String> {
+    let mut content = root.to_string();
+    if raw.ends_with('\n') && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    Ok(content)
+}
+
+fn serde_value_to_cst(value: &serde_json::Value) -> Result<CstInputValue, String> {
+    match value {
+        serde_json::Value::Null => Ok(CstInputValue::Null),
+        serde_json::Value::Bool(value) => Ok((*value).into()),
+        serde_json::Value::Number(value) => Ok(CstInputValue::Number(value.to_string())),
+        serde_json::Value::String(value) => Ok(value.clone().into()),
+        serde_json::Value::Array(values) => values
+            .iter()
+            .map(serde_value_to_cst)
+            .collect::<Result<Vec<_>, _>>()
+            .map(CstInputValue::Array),
+        serde_json::Value::Object(values) => values
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), serde_value_to_cst(value)?)))
+            .collect::<Result<Vec<_>, String>>()
+            .map(CstInputValue::Object),
+    }
+}
+
+fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "目标文件没有父目录")
+    })?;
+    let temp_path = unique_temp_path(parent, "config");
+    fs::write(&temp_path, content)?;
+    if let Err(error) = replace_file(&temp_path, path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(source, destination)
+}
+
+#[cfg(windows)]
+fn replace_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        ReplaceFileW, REPLACEFILE_IGNORE_MERGE_ERRORS, REPLACE_FILE_FLAGS,
+    };
+
+    if !destination.exists() {
+        return fs::rename(source, destination);
+    }
+    let source_wide: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+    let destination_wide: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    let result = unsafe {
+        ReplaceFileW(
+            destination_wide.as_ptr(),
+            source_wide.as_ptr(),
+            std::ptr::null(),
+            REPLACEFILE_IGNORE_MERGE_ERRORS as REPLACE_FILE_FLAGS,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    if result == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn stage_and_commit_photos(album_dir: &Path, copies: &[(PathBuf, String)]) -> Result<(), String> {
+    let staging_dir = unique_temp_path(
+        album_dir
+            .parent()
+            .ok_or_else(|| "无法确定相册目录".to_string())?,
+        "add-photos",
+    );
+    fs::create_dir(&staging_dir).map_err(|e| format!("创建照片暂存目录失败: {e}"))?;
+
+    for (source, filename) in copies {
+        if let Err(error) = fs::copy(source, staging_dir.join(filename)) {
+            let _ = fs::remove_dir_all(&staging_dir);
+            return Err(format!("复制照片 {filename} 失败: {error}"));
+        }
+    }
+
+    let mut committed = Vec::new();
+    for (_, filename) in copies {
+        let staged = staging_dir.join(filename);
+        let destination = album_dir.join(filename);
+        if let Err(error) = fs::rename(&staged, &destination) {
+            let mut rollback_failures = Vec::new();
+            for committed_name in committed.iter().rev() {
+                if let Err(rollback_error) = fs::rename(
+                    album_dir.join(committed_name),
+                    staging_dir.join(committed_name),
+                ) {
+                    rollback_failures.push(format!("{committed_name}: {rollback_error}"));
+                }
+            }
+            if rollback_failures.is_empty() {
+                let _ = fs::remove_dir_all(&staging_dir);
+                return Err(format!("添加照片 {filename} 失败: {error}"));
+            }
+            return Err(format!(
+                "添加照片 {filename} 失败: {error}；部分照片回滚失败（{}）。已保留暂存目录 {}，请检查后再重试",
+                rollback_failures.join("；"),
+                staging_dir.display()
+            ));
+        }
+        committed.push(filename.clone());
+    }
+    let _ = fs::remove_dir(&staging_dir);
+    Ok(())
+}
+
+fn unique_temp_path(parent: &Path, purpose: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    parent.join(format!(".swritor-{purpose}-{}-{nonce}", std::process::id()))
+}
+
+#[cfg(test)]
+mod album_config_tests {
+    use super::*;
+
+    #[test]
+    fn leaves_album_unchanged_when_staging_copy_fails() {
+        let temp = tempfile::tempdir().unwrap();
+        let album_dir = temp.path().join("album");
+        fs::create_dir(&album_dir).unwrap();
+        let first_source = temp.path().join("first.jpg");
+        fs::write(&first_source, b"first").unwrap();
+        let missing_source = temp.path().join("missing.jpg");
+        let copies = vec![
+            (first_source, "first.jpg".to_string()),
+            (missing_source, "missing.jpg".to_string()),
+        ];
+
+        let result = stage_and_commit_photos(&album_dir, &copies);
+
+        assert!(result.is_err());
+        assert!(fs::read_dir(&album_dir).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn preserves_jsonc_comments_when_updating_albums() {
+        let raw = r#"{
+  // keep top-level guidance
+  "enabled": true,
+  "albums": [
+    {
+      // keep album guidance
+      "dir": "travel",
+      "name": "Old"
+    }
+  ]
+}
+"#;
+        let config = serde_json::json!({
+            "enabled": true,
+            "albums": [{ "dir": "travel", "name": "New", "cover": "cover.jpg" }]
+        });
+
+        let updated = update_album_config_jsonc(raw, &config).unwrap();
+
+        assert!(updated.contains("// keep top-level guidance"));
+        assert!(updated.contains("// keep album guidance"));
+        assert!(updated.contains(r#""name": "New""#));
+        assert!(updated.contains(r#""cover": "cover.jpg""#));
+    }
+
+    #[test]
+    fn removes_only_the_deleted_album_entry() {
+        let raw = r#"{
+  // keep top-level guidance
+  "albums": [
+    { "dir": "keep" },
+    // deleted album note
+    { "dir": "remove" }
+  ]
+}
+"#;
+        let config = serde_json::json!({ "albums": [{ "dir": "keep" }] });
+
+        let updated = update_album_config_jsonc(raw, &config).unwrap();
+
+        assert!(updated.contains("// keep top-level guidance"));
+        assert!(!updated.contains(r#""dir": "remove""#));
+        assert!(updated.contains(r#""dir": "keep""#));
+    }
 }
 
 fn find_album_entry<'a>(
@@ -615,7 +918,10 @@ fn set_optional_album_field(
     field: &str,
     value: Option<String>,
 ) {
-    match value.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+    match value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
         Some(value) => {
             album.insert(field.to_string(), serde_json::Value::String(value));
         }
@@ -656,7 +962,9 @@ fn list_album_photos(path: &Path) -> Result<Vec<AlbumPhoto>, String> {
 }
 
 fn count_photos(path: &Path) -> usize {
-    list_album_photos(path).map(|photos| photos.len()).unwrap_or(0)
+    list_album_photos(path)
+        .map(|photos| photos.len())
+        .unwrap_or(0)
 }
 
 fn read_flat_dir(path: &Path) -> Result<FileNode, String> {
@@ -741,11 +1049,12 @@ pub async fn start_serve(
     if let Some(mut h) = state.serve_handle.lock().unwrap().take() {
         h.shutdown();
     }
+    *state.serve_blog_dir.lock().unwrap() = None;
 
     let shell_dir = crate::shell_fetcher::ensure_shell_cache(&app).await?;
 
     let config = spage_engine::serve::ServeConfig {
-        work_dir: blog_dir.into(),
+        work_dir: blog_dir.clone().into(),
         shell_dir,
         port: port.unwrap_or(3000),
         ..Default::default()
@@ -759,6 +1068,7 @@ pub async fn start_serve(
 
     let addr = format!("http://127.0.0.1:{}", handle.address().port());
     *state.serve_handle.lock().unwrap() = Some(handle);
+    *state.serve_blog_dir.lock().unwrap() = Some(blog_dir);
 
     if open_browser.unwrap_or(true) {
         #[cfg(target_os = "windows")]
@@ -785,23 +1095,26 @@ pub async fn stop_serve(state: State<'_, AppState>) -> Result<(), String> {
     if let Some(mut h) = state.serve_handle.lock().unwrap().take() {
         h.shutdown();
     }
+    *state.serve_blog_dir.lock().unwrap() = None;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_serve_status(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    let mut guard = state.serve_handle.lock().unwrap();
-    if let Some(h) = guard.as_ref() {
-        let port = h.address().port();
-        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
-            return Ok(Some(format!("http://127.0.0.1:{}", port)));
-        }
-        // 服务已死，清理 handle
-        if let Some(mut h) = guard.take() {
-            h.shutdown();
-        }
-    }
-    Ok(None)
+pub async fn get_serve_status(state: State<'_, AppState>) -> Result<Option<ServeStatus>, String> {
+    let guard = state.serve_handle.lock().unwrap();
+    let Some(handle) = guard.as_ref() else {
+        return Ok(None);
+    };
+    let blog_dir = state
+        .serve_blog_dir
+        .lock()
+        .unwrap()
+        .clone()
+        .unwrap_or_default();
+    Ok(Some(ServeStatus {
+        addr: format!("http://127.0.0.1:{}", handle.address().port()),
+        blog_dir,
+    }))
 }
 
 #[tauri::command]

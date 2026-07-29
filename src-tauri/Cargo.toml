@@ -26,13 +26,14 @@ flate2 = "1"
 tar = "0.4"
 dotenvy = "0.15"
 json_comments = "0.2"
+jsonc-parser = { version = "0.33", features = ["cst", "serde_json"] }
 spage-scaffold = { git = "https://github.com/Suzichen/spage.git", subdirectory = "crates/spage-scaffold" }
 spage-engine = { git = "https://github.com/Suzichen/spage.git", subdirectory = "crates/spage-engine" }
 tauri-plugin-store = "2"
 base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_System_Console"] }
+windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_System_Console"] }
 
 [profile.release]
 panic = "abort"

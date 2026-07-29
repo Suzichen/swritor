@@ -493,6 +493,8 @@ mdui-card.album-card:focus-visible {
   position: relative;
   overflow: hidden;
   min-width: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 280px;
   background: rgb(var(--mdui-color-surface-container));
   border-radius: 6px;
 }
@@ -518,6 +520,18 @@ mdui-card.album-card:focus-visible {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
+}
+
+mdui-menu.album-shared-photo-menu {
+  position: fixed;
+  z-index: 2300;
+  min-width: 164px;
+  --shape-corner: 6px;
+  box-shadow: var(--mdui-elevation-level2);
+}
+
+.album-photo-load-more {
+  height: 1px;
 }
 
 .album-danger-menu-item,

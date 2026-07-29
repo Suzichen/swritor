@@ -12,6 +12,7 @@ import { RegisterDialog } from "./components/auth/RegisterDialog";
 import { FirstTimeSetupDialog } from "./components/settings/FirstTimeSetupDialog";
 import { WindowShell } from "./components/common/WindowShell";
 import { AppSidebar, type AppPage } from "./components/layout/AppSidebar";
+import { getPreviewStatus, sameDirectory, stopPreview } from "./utils/preview";
 
 const SKIP_SETUP_KEY = "swritor-skip-site-setup";
 
@@ -34,6 +35,10 @@ function AppContent() {
   const [authDialogMode, setAuthDialogMode] = useState<"login" | "register" | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pendingBlogDir, setPendingBlogDir] = useState<string | null>(null);
+  const [pendingDirectoryPicker, setPendingDirectoryPicker] = useState(false);
+  const [switchingBlogDir, setSwitchingBlogDir] = useState(false);
+  const [switchError, setSwitchError] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("swritor-dir");
@@ -61,18 +66,61 @@ function AppContent() {
     setShowSetup(false);
   };
 
-  const selectBlogDir = async () => {
+  const applyBlogDir = (dir: string) => {
+    setBlogDir(dir);
+    localStorage.setItem("swritor-dir", dir);
+  };
+
+  const requestBlogDirChange = async (dir: string) => {
+    if (sameDirectory(blogDir, dir)) return true;
+    const status = await getPreviewStatus();
+    if (status) {
+      setSwitchError("");
+      setPendingBlogDir(dir);
+      return false;
+    }
+    applyBlogDir(dir);
+    return true;
+  };
+
+  const selectAndApplyBlogDir = async () => {
     const dir = await invoke<string | null>("select_directory");
-    if (dir) {
-      setBlogDir(dir);
-      localStorage.setItem("swritor-dir", dir);
+    if (dir) applyBlogDir(dir);
+  };
+
+  const selectBlogDir = async () => {
+    const status = await getPreviewStatus();
+    if (status) {
+      setSwitchError("");
+      setPendingDirectoryPicker(true);
+      return;
+    }
+    await selectAndApplyBlogDir();
+  };
+
+  const confirmBlogDirChange = async () => {
+    if (!pendingBlogDir && !pendingDirectoryPicker) return;
+    setSwitchingBlogDir(true);
+    setSwitchError("");
+    try {
+      await stopPreview();
+      if (pendingBlogDir) {
+        applyBlogDir(pendingBlogDir);
+        setShowInit(false);
+      }
+      const shouldOpenPicker = pendingDirectoryPicker;
+      setPendingBlogDir(null);
+      setPendingDirectoryPicker(false);
+      if (shouldOpenPicker) await selectAndApplyBlogDir();
+    } catch (error) {
+      setSwitchError(`关闭预览服务器失败: ${String(error)}`);
+    } finally {
+      setSwitchingBlogDir(false);
     }
   };
 
-  const handleInitComplete = (projectPath: string) => {
-    setBlogDir(projectPath);
-    localStorage.setItem("swritor-dir", projectPath);
-    setShowInit(false);
+  const handleInitComplete = async (projectPath: string) => {
+    if (await requestBlogDirChange(projectPath)) setShowInit(false);
   };
 
   if (!blogDir && !showInit) {
@@ -94,8 +142,56 @@ function AppContent() {
     );
   }
 
+  const directorySwitchDialog = (
+    <mdui-dialog
+      open={Boolean(pendingBlogDir || pendingDirectoryPicker) || undefined}
+      headline={pendingDirectoryPicker ? "关闭预览并选择目录？" : "关闭预览并切换目录？"}
+      close-on-esc
+      close-on-overlay-click
+      onclose={() => {
+        if (!switchingBlogDir) {
+          setPendingBlogDir(null);
+          setPendingDirectoryPicker(false);
+        }
+      }}
+    >
+      <div className="px-6 pb-2">
+        <p>
+          {pendingDirectoryPicker
+            ? "预览服务器正在运行。继续后会先关闭当前预览，再打开博客目录选择器。"
+            : "预览服务器正在运行。继续后会先关闭当前预览，再切换到新博客目录。"}
+        </p>
+        {switchError && <p className="mt-3 text-sm text-red-600">{switchError}</p>}
+      </div>
+      <mdui-button
+        slot="action"
+        variant="text"
+        disabled={switchingBlogDir || undefined}
+        onClick={() => {
+          setPendingBlogDir(null);
+          setPendingDirectoryPicker(false);
+        }}
+      >
+        取消
+      </mdui-button>
+      <mdui-button
+        slot="action"
+        variant="text"
+        loading={switchingBlogDir || undefined}
+        onClick={confirmBlogDirChange}
+      >
+        关闭并切换
+      </mdui-button>
+    </mdui-dialog>
+  );
+
   if (showInit) {
-    return <InitBlog onComplete={handleInitComplete} onCancel={() => setShowInit(false)} />;
+    return (
+      <>
+        <InitBlog onComplete={handleInitComplete} onCancel={() => setShowInit(false)} />
+        {directorySwitchDialog}
+      </>
+    );
   }
 
   if (editingPost !== null) {
@@ -135,6 +231,8 @@ function AppContent() {
         {page === "albums" && <Albums blogDir={blogDir} />}
         {page === "settings" && <Settings blogDir={blogDir} />}
       </mdui-layout-main>
+
+      {directorySwitchDialog}
 
       <LoginDialog
         open={authDialogMode === "login"}
