@@ -38,7 +38,7 @@ declare module "react" {
         icon?: string;
         "end-icon"?: string;
       };
-      "mdui-button-icon": MduiBase & { icon?: string; loading?: boolean };
+      "mdui-button-icon": MduiBase & { icon?: string; loading?: boolean; disabled?: boolean };
       "mdui-icon": MduiBase & { name?: string };
       "mdui-card": MduiBase & { variant?: string };
       "mdui-linear-progress": MduiBase & { value?: number; max?: number };
@@ -72,7 +72,7 @@ declare module "react" {
         clearable?: boolean;
         placement?: string;
       };
-      "mdui-menu-item": MduiBase & { value?: string };
+      "mdui-menu-item": MduiBase & { value?: string; disabled?: boolean; icon?: string };
       "mdui-menu": MduiBase & { value?: string; dense?: boolean };
       "mdui-dropdown": MduiBase & {
         open?: boolean;

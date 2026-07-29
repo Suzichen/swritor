@@ -168,7 +168,7 @@ spage-engine = { path = "../spage/crates/spage-engine" }
 - [x] 初始化博客项目（在线拉取模板）
 - [x] 编辑配置（config.json / album.config.json 可视化编辑）
 - [ ] 编写文章（专业Markdown 编辑器，frontmatter 表单）
-- [ ] 管理相册（相册浏览、图片增删、封面设置）
+- [x] 管理相册（相册浏览、创建删除、图片增删、名称说明和封面设置）
 - [ ] Memo模块
 - [ ] 主题修改
 - [x] 启动预览（调用 spage-engine serve 并在浏览器中查看效果）

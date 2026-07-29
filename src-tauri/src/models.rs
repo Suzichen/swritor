@@ -50,13 +50,22 @@ pub struct PostDetail {
     pub raw: String,
 }
 
+/// 相册中的照片
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AlbumPhoto {
+    pub filename: String,
+}
+
 /// 相册信息
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AlbumInfo {
     pub dir: String,
     pub name: Option<String>,
+    pub desc: Option<String>,
     pub cover: Option<String>,
+    pub configured_cover: Option<String>,
     pub photo_count: usize,
+    pub photos: Vec<AlbumPhoto>,
 }
 
 /// 站点配置（前端读写用）

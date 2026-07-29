@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Feature
+完善相册管理功能
+
 ## [v0.2.4] - 2026-07-27
 
 ### Feature

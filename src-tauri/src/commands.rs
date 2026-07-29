@@ -1,5 +1,6 @@
 use std::fs;
-use std::path::Path;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -131,18 +132,12 @@ pub async fn create_post(
 
 #[tauri::command]
 pub async fn list_albums(blog_dir: String) -> Result<Vec<AlbumInfo>, String> {
-    let albums_dir = Path::new(&blog_dir).join("albums");
+    let blog_dir = Path::new(&blog_dir);
+    let albums_dir = blog_dir.join("albums");
     if !albums_dir.is_dir() {
         return Ok(vec![]);
     }
-    // 读取 album.config.json
-    let config_path = Path::new(&blog_dir).join("album.config.json");
-    let config: serde_json::Value = if config_path.is_file() {
-        let s = fs::read_to_string(&config_path).unwrap_or_default();
-        serde_json::from_str(&s).unwrap_or_default()
-    } else {
-        serde_json::Value::Null
-    };
+    let config = read_album_config(blog_dir)?;
 
     let mut albums = Vec::new();
     let entries = fs::read_dir(&albums_dir).map_err(|e| e.to_string())?;
@@ -151,42 +146,195 @@ pub async fn list_albums(blog_dir: String) -> Result<Vec<AlbumInfo>, String> {
         if !path.is_dir() {
             continue;
         }
-        let dir_name = path.file_name().unwrap().to_string_lossy().to_string();
-        if dir_name.starts_with('.') || dir_name == "thumbs" {
+        let dir = entry.file_name().to_string_lossy().to_string();
+        if !spage_engine::albums::is_valid_dirname(&dir) || dir == "thumbs" {
             continue;
         }
-        let photo_count = count_photos(&path);
-        // 从配置中查找该相册的 name/cover
-        let (name, mut cover) = if let Some(arr) = config.get("albums").and_then(|v| v.as_array()) {
-            arr.iter()
-                .find(|a| a.get("dir").and_then(|d| d.as_str()) == Some(&dir_name))
-                .map(|a| {
-                    (
-                        a.get("name")
-                            .and_then(|n| n.as_str())
-                            .map(|s| s.to_string()),
-                        a.get("cover")
-                            .and_then(|c| c.as_str())
-                            .map(|s| s.to_string()),
-                    )
-                })
-                .unwrap_or((None, None))
-        } else {
-            (None, None)
-        };
-        // 没有配置 cover 时用第一张图
-        if cover.is_none() {
-            cover = first_photo(&path);
-        }
+
+        let photos = list_album_photos(&path)?;
+        let configured = find_album_entry(&config, &dir);
+        let name = configured
+            .and_then(|album| album.get("name"))
+            .and_then(|value| value.as_str())
+            .map(str::to_string);
+        let desc = configured
+            .and_then(|album| album.get("desc"))
+            .and_then(|value| value.as_str())
+            .map(str::to_string);
+        let configured_cover = configured
+            .and_then(|album| album.get("cover"))
+            .and_then(|value| value.as_str())
+            .filter(|cover| photos.iter().any(|photo| photo.filename == *cover))
+            .map(str::to_string);
+        let cover = configured_cover
+            .clone()
+            .or_else(|| photos.first().map(|photo| photo.filename.clone()));
+
         albums.push(AlbumInfo {
-            dir: dir_name,
+            dir,
             name,
+            desc,
             cover,
-            photo_count,
+            configured_cover,
+            photo_count: photos.len(),
+            photos,
         });
     }
     albums.sort_by(|a, b| a.dir.to_lowercase().cmp(&b.dir.to_lowercase()));
     Ok(albums)
+}
+
+#[tauri::command]
+pub async fn create_album(
+    blog_dir: String,
+    dir: String,
+    name: Option<String>,
+    desc: Option<String>,
+) -> Result<(), String> {
+    validate_album_dir(&dir)?;
+    let blog_dir = Path::new(&blog_dir);
+    let album_dir = blog_dir.join("albums").join(&dir);
+    if album_dir.exists() {
+        return Err(format!("相册目录已存在: {dir}"));
+    }
+
+    let mut config = read_album_config(blog_dir)?;
+    if find_album_entry(&config, &dir).is_some() {
+        return Err(format!("相册配置已存在: {dir}"));
+    }
+
+    fs::create_dir_all(&album_dir).map_err(|e| format!("创建相册失败: {e}"))?;
+    upsert_album_entry(&mut config, &dir, name, desc, None)?;
+    if let Err(error) = write_album_config(blog_dir, &config) {
+        let _ = fs::remove_dir(&album_dir);
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_album(
+    blog_dir: String,
+    dir: String,
+    name: Option<String>,
+    desc: Option<String>,
+    cover: Option<String>,
+) -> Result<(), String> {
+    validate_album_dir(&dir)?;
+    let blog_dir = Path::new(&blog_dir);
+    let album_dir = blog_dir.join("albums").join(&dir);
+    if !album_dir.is_dir() {
+        return Err(format!("相册不存在: {dir}"));
+    }
+    if let Some(filename) = cover.as_deref() {
+        validate_photo_filename(filename)?;
+        if !album_dir.join(filename).is_file() {
+            return Err(format!("封面照片不存在: {filename}"));
+        }
+    }
+
+    let mut config = read_album_config(blog_dir)?;
+    upsert_album_entry(&mut config, &dir, name, desc, cover)?;
+    write_album_config(blog_dir, &config)
+}
+
+#[tauri::command]
+pub async fn select_album_photos(app: AppHandle) -> Result<Vec<String>, String> {
+    let files = app
+        .dialog()
+        .file()
+        .set_title("添加照片")
+        .add_filter("照片", &["jpg", "jpeg", "png", "webp", "avif"])
+        .blocking_pick_files()
+        .unwrap_or_default();
+    Ok(files.into_iter().map(|path| path.to_string()).collect())
+}
+
+#[tauri::command]
+pub async fn add_album_photos(
+    blog_dir: String,
+    dir: String,
+    sources: Vec<String>,
+) -> Result<usize, String> {
+    validate_album_dir(&dir)?;
+    let album_dir = Path::new(&blog_dir).join("albums").join(&dir);
+    if !album_dir.is_dir() {
+        return Err(format!("相册不存在: {dir}"));
+    }
+
+    let mut copies = Vec::new();
+    for source in sources {
+        let source_path = PathBuf::from(&source);
+        if !source_path.is_file() {
+            return Err(format!("照片不存在: {source}"));
+        }
+        let filename = source_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("无效的照片文件名: {source}"))?
+            .to_string();
+        validate_photo_filename(&filename)?;
+        let destination = album_dir.join(&filename);
+        if destination.exists() {
+            return Err(format!("相册中已存在同名照片: {filename}"));
+        }
+        if copies.iter().any(|(_, existing): &(PathBuf, String)| existing == &filename) {
+            return Err(format!("选择了多个同名照片: {filename}"));
+        }
+        copies.push((source_path, filename));
+    }
+
+    for (source, filename) in &copies {
+        fs::copy(source, album_dir.join(filename))
+            .map_err(|e| format!("复制照片 {filename} 失败: {e}"))?;
+    }
+    Ok(copies.len())
+}
+
+#[tauri::command]
+pub async fn delete_album_photo(
+    blog_dir: String,
+    dir: String,
+    filename: String,
+) -> Result<(), String> {
+    validate_album_dir(&dir)?;
+    validate_photo_filename(&filename)?;
+    let blog_dir = Path::new(&blog_dir);
+    let photo_path = blog_dir.join("albums").join(&dir).join(&filename);
+    if !photo_path.is_file() {
+        return Err(format!("照片不存在: {filename}"));
+    }
+    fs::remove_file(&photo_path).map_err(|e| format!("删除照片失败: {e}"))?;
+
+    let mut config = read_album_config(blog_dir)?;
+    if find_album_entry(&config, &dir)
+        .and_then(|album| album.get("cover"))
+        .and_then(|cover| cover.as_str())
+        == Some(filename.as_str())
+    {
+        if let Some(album) = find_album_entry_mut(&mut config, &dir) {
+            album.remove("cover");
+        }
+        write_album_config(blog_dir, &config)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_album(blog_dir: String, dir: String) -> Result<(), String> {
+    validate_album_dir(&dir)?;
+    let blog_dir = Path::new(&blog_dir);
+    let album_dir = blog_dir.join("albums").join(&dir);
+    if !album_dir.is_dir() {
+        return Err(format!("相册不存在: {dir}"));
+    }
+    fs::remove_dir_all(&album_dir).map_err(|e| format!("删除相册失败: {e}"))?;
+
+    let mut config = read_album_config(blog_dir)?;
+    if let Some(albums) = config.get_mut("albums").and_then(|value| value.as_array_mut()) {
+        albums.retain(|album| album.get("dir").and_then(|value| value.as_str()) != Some(&dir));
+    }
+    write_album_config(blog_dir, &config)
 }
 
 // ── 设置相关 ──────────────────────────────────────────────
@@ -378,41 +526,137 @@ fn read_blog_timezone(blog_dir: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-fn first_photo(path: &Path) -> Option<String> {
-    let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
-    let mut entries: Vec<_> = fs::read_dir(path)
-        .ok()?
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .map(|ext| exts.contains(&ext.to_string_lossy().to_lowercase().as_str()))
-                .unwrap_or(false)
-        })
-        .collect();
-    entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
-    entries
-        .first()
-        .map(|e| e.file_name().to_string_lossy().to_string())
+fn read_album_config(blog_dir: &Path) -> Result<serde_json::Value, String> {
+    let path = blog_dir.join("album.config.json");
+    if !path.is_file() {
+        return Ok(serde_json::json!({ "enabled": false, "albums": [] }));
+    }
+
+    let raw = fs::read_to_string(&path).map_err(|e| format!("读取相册配置失败: {e}"))?;
+    let mut stripped = String::new();
+    json_comments::StripComments::new(raw.as_bytes())
+        .read_to_string(&mut stripped)
+        .map_err(|e| format!("解析相册配置失败: {e}"))?;
+    let mut config: serde_json::Value = serde_json::from_str(&stripped)
+        .map_err(|e| format!("解析相册配置失败: {e}"))?;
+    if !config.is_object() {
+        return Err("相册配置必须是 JSON 对象".into());
+    }
+    if config.get("albums").is_none() {
+        config["albums"] = serde_json::Value::Array(Vec::new());
+    } else if !config["albums"].is_array() {
+        return Err("相册配置的 albums 必须是数组".into());
+    }
+    Ok(config)
 }
 
+fn write_album_config(blog_dir: &Path, config: &serde_json::Value) -> Result<(), String> {
+    let path = blog_dir.join("album.config.json");
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("序列化相册配置失败: {e}"))?;
+    fs::write(path, format!("{content}\n")).map_err(|e| format!("保存相册配置失败: {e}"))
+}
 
+fn find_album_entry<'a>(
+    config: &'a serde_json::Value,
+    dir: &str,
+) -> Option<&'a serde_json::Map<String, serde_json::Value>> {
+    config
+        .get("albums")?
+        .as_array()?
+        .iter()
+        .find(|album| album.get("dir").and_then(|value| value.as_str()) == Some(dir))?
+        .as_object()
+}
+
+fn find_album_entry_mut<'a>(
+    config: &'a mut serde_json::Value,
+    dir: &str,
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    config
+        .get_mut("albums")?
+        .as_array_mut()?
+        .iter_mut()
+        .find(|album| album.get("dir").and_then(|value| value.as_str()) == Some(dir))?
+        .as_object_mut()
+}
+
+fn upsert_album_entry(
+    config: &mut serde_json::Value,
+    dir: &str,
+    name: Option<String>,
+    desc: Option<String>,
+    cover: Option<String>,
+) -> Result<(), String> {
+    let albums = config["albums"]
+        .as_array_mut()
+        .ok_or_else(|| "相册配置的 albums 必须是数组".to_string())?;
+    let index = albums
+        .iter()
+        .position(|album| album.get("dir").and_then(|value| value.as_str()) == Some(dir));
+    let index = match index {
+        Some(index) => index,
+        None => {
+            albums.push(serde_json::json!({ "dir": dir }));
+            albums.len() - 1
+        }
+    };
+    let album = albums[index]
+        .as_object_mut()
+        .ok_or_else(|| format!("相册配置项 {dir} 必须是对象"))?;
+    set_optional_album_field(album, "name", name);
+    set_optional_album_field(album, "desc", desc);
+    set_optional_album_field(album, "cover", cover);
+    Ok(())
+}
+
+fn set_optional_album_field(
+    album: &mut serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    value: Option<String>,
+) {
+    match value.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+        Some(value) => {
+            album.insert(field.to_string(), serde_json::Value::String(value));
+        }
+        None => {
+            album.remove(field);
+        }
+    }
+}
+
+fn validate_album_dir(dir: &str) -> Result<(), String> {
+    if dir == "thumbs" || !spage_engine::albums::is_valid_dirname(dir) {
+        return Err("目录名只能包含字母、数字、下划线或连字符，且不能以点开头".into());
+    }
+    Ok(())
+}
+
+fn validate_photo_filename(filename: &str) -> Result<(), String> {
+    let path = Path::new(filename);
+    if path.file_name().and_then(|name| name.to_str()) != Some(filename)
+        || !spage_engine::image_proc::is_photo_file(filename)
+    {
+        return Err(format!("不支持的照片文件: {filename}"));
+    }
+    Ok(())
+}
+
+fn list_album_photos(path: &Path) -> Result<Vec<AlbumPhoto>, String> {
+    let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
+    let mut photos: Vec<_> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_file())
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|filename| spage_engine::image_proc::is_photo_file(filename))
+        .map(|filename| AlbumPhoto { filename })
+        .collect();
+    photos.sort_by(|a, b| a.filename.to_lowercase().cmp(&b.filename.to_lowercase()));
+    Ok(photos)
+}
 
 fn count_photos(path: &Path) -> usize {
-    let exts = ["jpg", "jpeg", "png", "webp", "heic", "gif"];
-    fs::read_dir(path)
-        .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.path()
-                        .extension()
-                        .map(|ext| exts.contains(&ext.to_string_lossy().to_lowercase().as_str()))
-                        .unwrap_or(false)
-                })
-                .count()
-        })
-        .unwrap_or(0)
+    list_album_photos(path).map(|photos| photos.len()).unwrap_or(0)
 }
 
 fn read_flat_dir(path: &Path) -> Result<FileNode, String> {
