@@ -56,5 +56,15 @@ fn main() {
     println!("cargo:rustc-env=SPAGE_ENGINE_VERSION={}", engine_version);
     println!("cargo:rustc-env=SPAGE_TEMPLATE_VERSION={}", template_version);
 
-    tauri_build::build()
+    println!("cargo:rerun-if-changed=capabilities");
+    let capabilities = if std::env::var_os("CARGO_FEATURE_AUTOMATION").is_some() {
+        "./capabilities/automation/default.json"
+    } else {
+        "./capabilities/default.json"
+    };
+
+    tauri_build::try_build(
+        tauri_build::Attributes::new().capabilities_path_pattern(capabilities),
+    )
+    .expect("failed to build Tauri application");
 }

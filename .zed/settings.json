@@ -1,0 +1,11 @@
+{
+  "context_servers": {
+    "swritor-tauri": {
+      "command": "npm",
+      "args": ["run", "--silent", "mcp:server"],
+      "env": {
+        "TAURI_WEBDRIVER_PORT": "4445"
+      }
+    }
+  }
+}

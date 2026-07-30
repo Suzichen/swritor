@@ -1,6 +1,6 @@
 [package]
 name = "swritor"
-version = "0.2.7"
+version = "0.2.8"
 description = "Swritor - 创作•管理•分享"
 authors = ["Spage Team"]
 edition = "2021"
@@ -12,8 +12,13 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+default = []
+automation = ["dep:tauri-plugin-wdio-webdriver"]
+
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-wdio-webdriver = { version = "1.2.0", optional = true }
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
 tauri-plugin-opener = "2"
