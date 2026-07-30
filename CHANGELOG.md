@@ -3,6 +3,9 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)
 
 ## [Unreleased]
+### Feature
+专业Markdown编辑器
+文章配置的可视化表单
 
 ## [v0.2.8] - 2026-07-30
 

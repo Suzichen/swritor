@@ -188,8 +188,8 @@ spage-engine = { path = "../spage/crates/spage-engine" }
 - [x] 编辑配置（config.json / album.config.json 可视化编辑）
 - [ ] 编写文章
   - [x] 基础编辑
-  - [ ] frontmatter 表单
-  - [ ] 专业Markdown 编辑器
+  - [x] frontmatter 表单
+  - [x] 专业Markdown 编辑器
 - [x] 管理相册（相册浏览、创建删除、图片增删、名称说明和封面设置）
 - [ ] Memo模块
 - [ ] 主题修改
