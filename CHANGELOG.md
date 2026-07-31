@@ -3,9 +3,16 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)
 
 ## [Unreleased]
+
+## [v0.3.0] - 2026-07-31
+
 ### Feature
-专业Markdown编辑器
-文章配置的可视化表单
+现已内嵌专业Markdown编辑器 🎉
+优化文章配置表单
+支持多语言文章撰写
+
+### Fixed
+MCP 改善
 
 ## [v0.2.8] - 2026-07-30
 
