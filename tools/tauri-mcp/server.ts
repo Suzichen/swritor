@@ -3,12 +3,14 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import {
   connect,
+  clickElement,
   disconnect,
   findElement,
   invokeTauri,
   pageSnapshot,
   setElementValue,
   takeScreenshot,
+  visiblePageText,
   waitForWebDriver,
 } from "./client.js";
 import {
@@ -170,7 +172,7 @@ server.registerTool(
   guarded(async ({ selector, text }) => {
     const element = await findElement(selector as string | undefined, text as string | undefined);
     await element.waitForDisplayed({ timeout: 10_000 });
-    await element.click();
+    await clickElement(element);
     return textResult({ clicked: selector || text });
   }),
 );
@@ -221,8 +223,7 @@ server.registerTool(
     const browser = await connect();
     await browser.waitUntil(
       async () => {
-        const bodyText = await browser.$("body").getText();
-        const found = bodyText.includes(text as string);
+        const found = (await visiblePageText()).includes(text as string);
         return reverse ? !found : found;
       },
       { timeout: timeoutMs as number, timeoutMsg: `Timed out waiting for text: ${text}` },
@@ -247,7 +248,7 @@ server.registerTool(
     let passed = false;
 
     if (kind === "text-visible" || kind === "text-hidden") {
-      actual = await browser.$("body").getText();
+      actual = await visiblePageText();
       const contains = (actual as string).includes(expected as string);
       passed = kind === "text-visible" ? contains : !contains;
     } else {
@@ -314,6 +315,30 @@ server.registerTool(
       return errorResult(error);
     }
   },
+);
+
+server.registerTool(
+  "tauri_set_viewport_size",
+  {
+    description: "Resize the real Tauri development window to a requested CSS viewport size for responsive testing, accounting for display scaling.",
+    inputSchema: {
+      width: z.number().int().min(360).max(3840),
+      height: z.number().int().min(480).max(2160),
+    },
+  },
+  guarded(async ({ width, height }) => {
+    const browser = await connect();
+    const currentWindow = await browser.getWindowSize();
+    const currentViewport = await browser.execute(() => ({ width: innerWidth, height: innerHeight }));
+    const scaleX = currentViewport.width ? currentWindow.width / currentViewport.width : 1;
+    const scaleY = currentViewport.height ? currentWindow.height / currentViewport.height : scaleX;
+    await browser.setWindowSize(
+      Math.round((width as number) * scaleX),
+      Math.round((height as number) * scaleY),
+    );
+    const viewport = await browser.execute(() => ({ width: innerWidth, height: innerHeight, devicePixelRatio }));
+    return textResult({ requested: { width, height }, viewport, window: await browser.getWindowSize() });
+  }),
 );
 
 const shutdown = async () => {

@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { Document } from "yaml";
+import { serializePostSource } from "../utils/frontmatter";
 import { getPreviewAddress } from "../utils/preview";
 
 interface PostSummary {
@@ -20,56 +23,162 @@ export function PostList({ blogDir, onEdit }: Props) {
   const [posts, setPosts] = useState<PostSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const dialogRef = useRef<any>(null);
-  const createDialogRef = useRef<any>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [listError, setListError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const activeBlogDirRef = useRef(blogDir);
+  const loadSequenceRef = useRef(0);
+  const createOperationRef = useRef(0);
+  const deleteOperationRef = useRef(0);
+  const creatingRef = useRef(false);
+  const deletingRef = useRef(false);
+  activeBlogDirRef.current = blogDir;
 
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
+    const requestedBlogDir = blogDir;
+    const sequence = ++loadSequenceRef.current;
     setLoading(true);
+    setListError("");
     try {
-      const list = await invoke<PostSummary[]>("list_posts", { blogDir });
+      const list = await invoke<PostSummary[]>("list_posts", { blogDir: requestedBlogDir });
+      if (sequence !== loadSequenceRef.current || activeBlogDirRef.current !== requestedBlogDir) return;
       setPosts(list);
-    } catch (e) {
-      console.error(e);
+    } catch (loadError) {
+      if (sequence !== loadSequenceRef.current || activeBlogDirRef.current !== requestedBlogDir) return;
+      setListError(`无法读取文章：${String(loadError)}`);
+    } finally {
+      if (sequence === loadSequenceRef.current && activeBlogDirRef.current === requestedBlogDir) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
-  };
+  }, [blogDir]);
 
-  useEffect(() => { loadPosts(); }, [blogDir]);
+  useEffect(() => {
+    loadSequenceRef.current += 1;
+    createOperationRef.current += 1;
+    deleteOperationRef.current += 1;
+    creatingRef.current = false;
+    deletingRef.current = false;
+    setPosts([]);
+    setDeleteTarget(null);
+    setDeleting(false);
+    setDeleteError("");
+    setCreateDialogOpen(false);
+    setCreating(false);
+    setCreateError("");
+    setNewTitle("");
+    void loadPosts();
+
+    return () => {
+      loadSequenceRef.current += 1;
+      createOperationRef.current += 1;
+      deleteOperationRef.current += 1;
+      creatingRef.current = false;
+      deletingRef.current = false;
+    };
+  }, [blogDir, loadPosts]);
 
   const handleDeleteClick = (filename: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeleteError("");
     setDeleteTarget(filename);
-    dialogRef.current?.setAttribute("open", "");
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    await invoke("delete_post", { blogDir, filename: deleteTarget });
-    setDeleteTarget(null);
-    dialogRef.current?.removeAttribute("open");
-    loadPosts();
+    if (!deleteTarget || deletingRef.current) return;
+    const requestedBlogDir = blogDir;
+    const operation = ++deleteOperationRef.current;
+    deletingRef.current = true;
+    setDeleteError("");
+    setDeleting(true);
+    try {
+      await invoke("delete_post", {
+        blogDir: requestedBlogDir,
+        filename: deleteTarget,
+        deleteTranslations: true,
+      });
+      if (operation !== deleteOperationRef.current || activeBlogDirRef.current !== requestedBlogDir) return;
+      setDeleteTarget(null);
+      await loadPosts();
+    } catch (operationError) {
+      if (operation !== deleteOperationRef.current || activeBlogDirRef.current !== requestedBlogDir) return;
+      setDeleteError(`删除失败：${String(operationError)}`);
+    } finally {
+      if (operation === deleteOperationRef.current && activeBlogDirRef.current === requestedBlogDir) {
+        deletingRef.current = false;
+        setDeleting(false);
+      }
+    }
   };
 
   const cancelDelete = () => {
+    if (deletingRef.current) return;
     setDeleteTarget(null);
-    dialogRef.current?.removeAttribute("open");
+    setDeleteError("");
   };
 
   const openCreateDialog = () => {
     setNewTitle("");
-    createDialogRef.current?.setAttribute("open", "");
+    setCreateError("");
+    setCreateDialogOpen(true);
+  };
+
+  const closeCreateDialog = () => {
+    if (creatingRef.current) return;
+    setCreateDialogOpen(false);
+    setCreateError("");
+    setNewTitle("");
+  };
+
+  const prepareDialogFocus = (event: Event) => {
+    const dialog = event.currentTarget as HTMLElement;
+    dialog.shadowRoot
+      ?.querySelector<HTMLElement>("[part='panel']")
+      ?.setAttribute("tabindex", "-1");
   };
 
   const confirmCreate = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || creatingRef.current) return;
+    const requestedBlogDir = blogDir;
+    const operation = ++createOperationRef.current;
+    creatingRef.current = true;
     const title = newTitle.trim();
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const filename = title.replace(/[^a-zA-Z0-9\u4e00-\u9fff-]/g, "-") + ".md";
-    const content = `---\ntitle: ${title}\ndate: ${now}\ntags: []\ncategories: []\npreview: \n---\n\n`;
-    await invoke("create_post", { blogDir, filename, content });
-    createDialogRef.current?.removeAttribute("open");
-    onEdit(filename);
+    const date = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    const now = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    const slug = title
+      .normalize("NFKC")
+      .replace(/[^\p{L}\p{N}-]+/gu, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || `post-${Date.now()}`;
+    const filename = `${slug}.md`;
+    const content = serializePostSource(new Document({}), {
+      title,
+      date: now,
+      tags: [],
+      categories: [],
+      preview: "",
+    }, "\n");
+    setCreateError("");
+    setCreating(true);
+    try {
+      await invoke("create_post", { blogDir: requestedBlogDir, filename, content });
+      if (operation !== createOperationRef.current || activeBlogDirRef.current !== requestedBlogDir) return;
+      setCreateDialogOpen(false);
+      onEdit(filename);
+    } catch (operationError) {
+      if (operation !== createOperationRef.current || activeBlogDirRef.current !== requestedBlogDir) return;
+      setCreateError(`创建失败：${String(operationError)}`);
+    } finally {
+      if (operation === createOperationRef.current && activeBlogDirRef.current === requestedBlogDir) {
+        creatingRef.current = false;
+        setCreating(false);
+      }
+    }
   };
 
   const handlePreview = async (filename: string, e: React.MouseEvent) => {
@@ -90,6 +199,8 @@ export function PostList({ blogDir, onEdit }: Props) {
           新建文章
         </mdui-button>
       </header>
+
+      {listError && <div className="post-list-error" role="alert">{listError}</div>}
 
       {loading ? (
         <div className="post-list-loading">
@@ -164,37 +275,69 @@ export function PostList({ blogDir, onEdit }: Props) {
         </mdui-card>
       )}
 
-      {/* 新建文章 Dialog */}
-      <mdui-dialog ref={createDialogRef} headline="新建文章" class="create-dialog">
-        <div className="px-6 pb-2">
-          <mdui-text-field
-            variant="outlined"
-            label="文章标题"
-            value={newTitle}
-            onInput={(e: any) => setNewTitle(e.target.value)}
-            onKeyDown={(e: any) => { if (e.key === "Enter") confirmCreate(); }}
-          />
-        </div>
-        <mdui-button slot="action" variant="text" onClick={() => createDialogRef.current?.removeAttribute("open")}>
-          取消
-        </mdui-button>
-        <mdui-button slot="action" variant="text" onClick={confirmCreate}>
-          创建
-        </mdui-button>
-      </mdui-dialog>
+      {createPortal(
+        <>
+          <mdui-dialog
+            open={createDialogOpen || undefined}
+            headline="新建文章"
+            class="create-dialog"
+            close-on-esc={!creating || undefined}
+            close-on-overlay-click={!creating || undefined}
+            onopen={prepareDialogFocus}
+            onclose={closeCreateDialog}
+          >
+            <div className="post-create-dialog-content">
+              <mdui-text-field
+                variant="outlined"
+                label="文章标题"
+                value={newTitle}
+                autofocus
+                onInput={(event) => setNewTitle((event.currentTarget as HTMLElement & { value: string }).value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    void confirmCreate();
+                  }
+                }}
+              />
+              {createError && <div className="post-dialog-error" role="alert">{createError}</div>}
+            </div>
+            <mdui-button slot="action" variant="text" disabled={creating || undefined} onClick={closeCreateDialog}>
+              取消
+            </mdui-button>
+            <mdui-button
+              slot="action"
+              variant="filled"
+              disabled={!newTitle.trim() || creating || undefined}
+              loading={creating || undefined}
+              onClick={confirmCreate}
+            >
+              创建文章
+            </mdui-button>
+          </mdui-dialog>
 
-      {/* 删除确认 Dialog */}
-      <mdui-dialog ref={dialogRef} headline="确认删除">
-        <div className="px-6 pb-2">
-          确定要删除「{deleteTarget}」吗？此操作不可撤销。
-        </div>
-        <mdui-button slot="action" variant="text" onClick={cancelDelete}>
-          取消
-        </mdui-button>
-        <mdui-button slot="action" variant="text" onClick={confirmDelete}>
-          删除
-        </mdui-button>
-      </mdui-dialog>
+          <mdui-dialog
+            open={Boolean(deleteTarget) || undefined}
+            headline="确认删除"
+            close-on-esc={!deleting || undefined}
+            close-on-overlay-click={!deleting || undefined}
+            onopen={prepareDialogFocus}
+            onclose={cancelDelete}
+          >
+            <div className="px-6 pb-2">
+              确定要删除「{deleteTarget}」吗？已有翻译也会一并删除。删除后无法恢复。
+              {deleteError && <div className="post-dialog-error" role="alert">{deleteError}</div>}
+            </div>
+            <mdui-button slot="action" variant="text" disabled={deleting || undefined} onClick={cancelDelete}>
+              取消
+            </mdui-button>
+            <mdui-button slot="action" variant="text" loading={deleting || undefined} onClick={confirmDelete}>
+              删除
+            </mdui-button>
+          </mdui-dialog>
+        </>,
+        document.body,
+      )}
     </div>
   );
 }

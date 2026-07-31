@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::fs;
-use std::io::Read;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,6 +14,8 @@ use tauri_plugin_opener::OpenerExt;
 use crate::error::AppError;
 use crate::models::*;
 use crate::state::AppState;
+
+const SPAGE_POST_LANGUAGES: [&str; 3] = ["en", "zh-CN", "ja"];
 
 // ── 目录相关 ──────────────────────────────────────────────
 
@@ -67,22 +69,28 @@ pub async fn open_in_explorer(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn list_posts(blog_dir: String) -> Result<Vec<PostSummary>, String> {
-    let posts_dir = Path::new(&blog_dir).join("posts");
-    let timezone = read_blog_timezone(Path::new(&blog_dir));
-    if !posts_dir.is_dir() {
+    let Some(posts_dir) = existing_posts_dir(Path::new(&blog_dir))? else {
         return Ok(vec![]);
-    }
+    };
+    let timezone = read_blog_timezone(Path::new(&blog_dir));
     let mut posts = Vec::new();
     let entries = fs::read_dir(&posts_dir).map_err(|e| e.to_string())?;
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取文章目录失败: {e}"))?;
         let path = entry.path();
-        if path.extension().map(|e| e == "md").unwrap_or(false) {
-            let filename = path.file_name().unwrap().to_string_lossy();
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("读取文章类型失败: {e}"))?;
+        if file_type.is_file() && path.extension().map(|e| e == "md").unwrap_or(false) {
+            let filename = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| "文章文件名必须是有效的 Unicode".to_string())?;
             let (_, language) = spage_engine::posts::parse_post_filename(&filename);
             if language.is_some() {
                 continue;
             }
-            if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(content) = read_post_file(&path) {
                 if let Ok(summary) = parse_post_summary(&path, &content, timezone.as_deref()) {
                     posts.push(summary);
                 }
@@ -95,28 +103,123 @@ pub async fn list_posts(blog_dir: String) -> Result<Vec<PostSummary>, String> {
 
 #[tauri::command]
 pub async fn get_post(blog_dir: String, filename: String) -> Result<PostDetail, String> {
-    let path = Path::new(&blog_dir).join("posts").join(&filename);
-    if !path.is_file() {
-        return Err(format!("文件不存在: {}", filename));
-    }
-    let raw = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    validate_post_filename(&filename)?;
+    let posts_dir = require_existing_posts_dir(Path::new(&blog_dir))?;
+    let path = safe_existing_post_path(&posts_dir, &filename)?;
+    require_default_post_for_localization(&posts_dir, &filename)?;
+    let raw = read_post_file(&path)?;
     let timezone = read_blog_timezone(Path::new(&blog_dir));
     parse_post_detail(&filename, &raw, timezone.as_deref())
 }
 
 #[tauri::command]
 pub async fn save_post(blog_dir: String, filename: String, content: String) -> Result<(), String> {
-    let path = Path::new(&blog_dir).join("posts").join(&filename);
-    fs::write(&path, &content).map_err(|e| e.to_string())
+    validate_post_filename(&filename)?;
+    let posts_dir = require_existing_posts_dir(Path::new(&blog_dir))?;
+    let path = safe_existing_post_path(&posts_dir, &filename)?;
+    require_default_post_for_localization(&posts_dir, &filename)?;
+    write_existing_post(&path, content.as_bytes())
 }
 
 #[tauri::command]
-pub async fn delete_post(blog_dir: String, filename: String) -> Result<(), String> {
-    let path = Path::new(&blog_dir).join("posts").join(&filename);
-    if path.is_file() {
-        fs::remove_file(&path).map_err(|e| e.to_string())?;
+pub async fn list_post_versions(
+    blog_dir: String,
+    filename: String,
+) -> Result<PostVersions, String> {
+    validate_post_filename(&filename)?;
+    let posts_dir = require_existing_posts_dir(Path::new(&blog_dir))?;
+    safe_existing_post_path(&posts_dir, &filename)?;
+    let (target_slug, _) = spage_engine::posts::parse_post_filename(&filename);
+    safe_existing_post_path(&posts_dir, &default_post_filename(&target_slug))?;
+    let default_language = read_blog_language(Path::new(&blog_dir));
+    let mut versions = Vec::new();
+    let mut languages = HashSet::new();
+
+    for entry in fs::read_dir(&posts_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| format!("读取文章目录失败: {e}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("读取文章类型失败: {e}"))?;
+        let path = entry.path();
+        if !file_type.is_file() || path.extension().and_then(|value| value.to_str()) != Some("md") {
+            continue;
+        }
+        let candidate = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "文章文件名必须是有效的 Unicode".to_string())?;
+        let (slug, language) = spage_engine::posts::parse_post_filename(&candidate);
+        if slug != target_slug {
+            continue;
+        }
+        let language = language.map(|code| normalize_post_language(&code));
+        if let Some(code) = &language {
+            if code.eq_ignore_ascii_case(&default_language) {
+                return Err(format!("{code} 是网站默认语言，不能同时作为本地化版本"));
+            }
+            if !languages.insert(code.to_ascii_lowercase()) {
+                return Err(format!("文章存在重复的语言版本: {code}"));
+            }
+        }
+        versions.push(PostVersion {
+            filename: candidate,
+            language,
+        });
     }
-    Ok(())
+
+    versions.sort_by(|a, b| match (&a.language, &b.language) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(a), Some(b)) => a.cmp(b),
+    });
+
+    Ok(PostVersions {
+        default_language,
+        versions,
+    })
+}
+
+#[tauri::command]
+pub async fn delete_post(
+    blog_dir: String,
+    filename: String,
+    delete_translations: Option<bool>,
+) -> Result<(), String> {
+    validate_post_filename(&filename)?;
+    let posts_dir = require_existing_posts_dir(Path::new(&blog_dir))?;
+    let exact_path = safe_existing_post_path(&posts_dir, &filename)?;
+    let (target_slug, language) = spage_engine::posts::parse_post_filename(&filename);
+
+    if language.is_some() || !delete_translations.unwrap_or(false) {
+        return stage_and_delete_posts(&posts_dir, &[exact_path]);
+    }
+
+    let mut targets = Vec::new();
+    for entry in fs::read_dir(&posts_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| format!("读取文章目录失败: {e}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("读取文章类型失败: {e}"))?;
+        if entry.path().extension().and_then(|value| value.to_str()) != Some("md") {
+            continue;
+        }
+        let candidate = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "文章文件名必须是有效的 Unicode".to_string())?;
+        let (slug, candidate_language) = spage_engine::posts::parse_post_filename(&candidate);
+        if slug == target_slug && candidate_language.is_some() {
+            if file_type.is_symlink() || !file_type.is_file() {
+                return Err(format!("语言版本不是普通文件，已取消删除: {candidate}"));
+            }
+            targets.push(entry.path());
+        }
+    }
+    targets.sort();
+    // Move the default file last so an interrupted operation leaves the article discoverable.
+    targets.push(exact_path);
+    stage_and_delete_posts(&posts_dir, &targets)
 }
 
 #[tauri::command]
@@ -125,13 +228,69 @@ pub async fn create_post(
     filename: String,
     content: String,
 ) -> Result<(), String> {
-    let posts_dir = Path::new(&blog_dir).join("posts");
-    fs::create_dir_all(&posts_dir).map_err(|e| e.to_string())?;
-    let path = posts_dir.join(&filename);
-    if path.exists() {
-        return Err(format!("文件已存在: {}", filename));
+    validate_post_filename(&filename)?;
+    let posts_dir = ensure_posts_dir(Path::new(&blog_dir))?;
+    let (requested_slug, requested_language) = spage_engine::posts::parse_post_filename(&filename);
+    if let Some(requested_language) = requested_language {
+        safe_existing_post_path(&posts_dir, &default_post_filename(&requested_slug)).map_err(
+            |_| {
+                format!(
+                    "文件名 {filename} 看起来像语言版本，但默认文章 {} 不存在",
+                    default_post_filename(&requested_slug)
+                )
+            },
+        )?;
+        let normalized_language = normalize_post_language(&requested_language);
+        if normalized_language != requested_language {
+            return Err(format!(
+                "语言代码应写为 {normalized_language}，而不是 {requested_language}"
+            ));
+        }
+        if requested_language.eq_ignore_ascii_case(&read_blog_language(Path::new(&blog_dir))) {
+            return Err(format!(
+                "{requested_language} 是网站默认语言，无需创建重复版本"
+            ));
+        }
+        if !SPAGE_POST_LANGUAGES
+            .iter()
+            .any(|language| language.eq_ignore_ascii_case(&requested_language))
+        {
+            return Err(format!(
+                "Spage 当前只支持 en、zh-CN 和 ja，不能创建 {requested_language} 翻译"
+            ));
+        }
+        for entry in fs::read_dir(&posts_dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| format!("读取文章目录失败: {e}"))?;
+            if entry.path().extension().and_then(|value| value.to_str()) != Some("md")
+                || !entry
+                    .file_type()
+                    .map_err(|e| format!("读取文章类型失败: {e}"))?
+                    .is_file()
+            {
+                continue;
+            }
+            let candidate = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| "文章文件名必须是有效的 Unicode".to_string())?;
+            let (slug, language) = spage_engine::posts::parse_post_filename(&candidate);
+            if language
+                .as_deref()
+                .is_some_and(|language| language.eq_ignore_ascii_case(&requested_language))
+                && slug == requested_slug
+            {
+                return Err(format!("{requested_language} 语言版本已经存在"));
+            }
+        }
     }
-    fs::write(&path, &content).map_err(|e| e.to_string())
+    let path = posts_dir.join(&filename);
+    create_post_file(&path, content.as_bytes()).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            format!("文件已存在: {filename}")
+        } else {
+            error.to_string()
+        }
+    })
 }
 
 // ── 相册相关 ──────────────────────────────────────────────
@@ -546,11 +705,353 @@ fn parse_post_detail(
 fn read_blog_timezone(blog_dir: &Path) -> Option<String> {
     let config = blog_dir.join("config.json");
     let raw = fs::read_to_string(config).ok()?;
-    serde_json::from_str::<serde_json::Value>(&raw)
-        .ok()?
-        .get("timezone")
-        .and_then(|value| value.as_str())
-        .map(str::to_string)
+    serde_json::from_reader::<_, serde_json::Value>(json_comments::StripComments::new(
+        raw.as_bytes(),
+    ))
+    .ok()?
+    .get("timezone")
+    .and_then(|value| value.as_str())
+    .map(str::to_string)
+}
+
+fn read_blog_language(blog_dir: &Path) -> String {
+    let config = blog_dir.join("config.json");
+    fs::read_to_string(config)
+        .ok()
+        .and_then(|raw| {
+            serde_json::from_reader::<_, serde_json::Value>(json_comments::StripComments::new(
+                raw.as_bytes(),
+            ))
+            .ok()
+        })
+        .and_then(|value| {
+            value
+                .get("language")
+                .and_then(|language| language.as_str())
+                .map(str::trim)
+                .filter(|language| is_valid_post_language(language))
+                .map(normalize_post_language)
+        })
+        .unwrap_or_else(|| "en".to_string())
+}
+
+fn validate_post_filename(filename: &str) -> Result<(), String> {
+    let path = Path::new(filename);
+    let direct_filename = path.file_name().and_then(|value| value.to_str()) == Some(filename);
+    let valid_extension = path.extension().and_then(|value| value.to_str()) == Some("md");
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    let valid_characters = !filename
+        .chars()
+        .any(|character| character.is_control() || r#"<>:\"/\\|?*"#.contains(character));
+    let valid_stem = !stem.is_empty()
+        && filename.trim() == filename
+        && stem.trim() == stem
+        && !stem.starts_with('.')
+        && !stem.ends_with('.')
+        && !is_windows_device_name(stem);
+
+    if !direct_filename || !valid_extension || !valid_characters || !valid_stem {
+        return Err("文章文件名无效".into());
+    }
+    Ok(())
+}
+
+fn is_windows_device_name(stem: &str) -> bool {
+    let basename = stem.split('.').next().unwrap_or_default();
+    let uppercase = basename.to_ascii_uppercase();
+    matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || uppercase.strip_prefix("COM").is_some_and(|suffix| {
+            matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+        })
+        || uppercase.strip_prefix("LPT").is_some_and(|suffix| {
+            matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+        })
+}
+
+fn existing_posts_dir(blog_dir: &Path) -> Result<Option<PathBuf>, String> {
+    let blog_metadata = match fs::symlink_metadata(blog_dir) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("读取博客目录失败: {error}")),
+    };
+    if blog_metadata.file_type().is_symlink() {
+        return Err("博客目录不能是符号链接".into());
+    }
+    if !blog_metadata.is_dir() {
+        return Err("博客目录无效".into());
+    }
+    let canonical_blog_dir = blog_dir
+        .canonicalize()
+        .map_err(|e| format!("解析博客目录失败: {e}"))?;
+    let posts_dir = canonical_blog_dir.join("posts");
+    match fs::symlink_metadata(&posts_dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() => Err("文章目录不能是符号链接".into()),
+        Ok(metadata) if !metadata.is_dir() => Err("posts 不是有效的文章目录".into()),
+        Ok(_) => {
+            let canonical_posts_dir = posts_dir
+                .canonicalize()
+                .map_err(|e| format!("解析文章目录失败: {e}"))?;
+            if canonical_posts_dir.parent() != Some(canonical_blog_dir.as_path()) {
+                return Err("文章目录超出博客目录".into());
+            }
+            Ok(Some(canonical_posts_dir))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("读取文章目录失败: {error}")),
+    }
+}
+
+fn require_existing_posts_dir(blog_dir: &Path) -> Result<PathBuf, String> {
+    existing_posts_dir(blog_dir)?.ok_or_else(|| "文章目录不存在".into())
+}
+
+fn ensure_posts_dir(blog_dir: &Path) -> Result<PathBuf, String> {
+    if let Some(posts_dir) = existing_posts_dir(blog_dir)? {
+        return Ok(posts_dir);
+    }
+    let canonical_blog_dir = blog_dir
+        .canonicalize()
+        .map_err(|e| format!("博客目录不存在或无效: {e}"))?;
+    fs::create_dir(canonical_blog_dir.join("posts"))
+        .map_err(|e| format!("创建文章目录失败: {e}"))?;
+    require_existing_posts_dir(blog_dir)
+}
+
+fn safe_existing_post_path(posts_dir: &Path, filename: &str) -> Result<PathBuf, String> {
+    let path = posts_dir.join(filename);
+    let metadata = fs::symlink_metadata(&path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            format!("文件不存在: {filename}")
+        } else {
+            format!("读取文章文件失败: {error}")
+        }
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(format!("文章文件无效: {filename}"));
+    }
+    let canonical = path
+        .canonicalize()
+        .map_err(|e| format!("解析文章路径失败: {e}"))?;
+    if canonical.parent() != Some(posts_dir) {
+        return Err("文章路径超出 posts 目录".into());
+    }
+    Ok(canonical)
+}
+
+#[cfg(unix)]
+fn read_post_file(path: &Path) -> Result<String, String> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut content = String::new();
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+        .and_then(|mut file| file.read_to_string(&mut content))
+        .map_err(|e| format!("读取文章失败: {e}"))?;
+    Ok(content)
+}
+
+#[cfg(not(unix))]
+fn read_post_file(path: &Path) -> Result<String, String> {
+    fs::read_to_string(path).map_err(|e| format!("读取文章失败: {e}"))
+}
+
+#[cfg(unix)]
+fn open_existing_post_for_write(path: &Path) -> std::io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+}
+
+#[cfg(not(unix))]
+fn open_existing_post_for_write(path: &Path) -> std::io::Result<File> {
+    OpenOptions::new().write(true).truncate(true).open(path)
+}
+
+fn write_existing_post(path: &Path, content: &[u8]) -> Result<(), String> {
+    open_existing_post_for_write(path)
+        .and_then(|mut file| file.write_all(content))
+        .map_err(|e| format!("保存文章失败: {e}"))
+}
+
+#[cfg(unix)]
+fn create_post_file(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)?
+        .write_all(content)
+}
+
+#[cfg(not(unix))]
+fn create_post_file(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?
+        .write_all(content)
+}
+
+fn normalize_post_language(language: &str) -> String {
+    language
+        .split('-')
+        .enumerate()
+        .map(|(index, part)| {
+            if index == 0 {
+                part.to_ascii_lowercase()
+            } else if part.len() == 2 {
+                part.to_ascii_uppercase()
+            } else if part.len() == 4 {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| {
+                        format!(
+                            "{}{}",
+                            first.to_ascii_uppercase(),
+                            chars.as_str().to_ascii_lowercase()
+                        )
+                    })
+                    .unwrap_or_default()
+            } else {
+                part.to_ascii_lowercase()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn is_valid_post_language(language: &str) -> bool {
+    let parts: Vec<_> = language.split('-').collect();
+    let Some(primary) = parts.first() else {
+        return false;
+    };
+    (2..=3).contains(&primary.len())
+        && primary
+            .chars()
+            .all(|character| character.is_ascii_alphabetic())
+        && parts.len() <= 3
+        && parts.iter().skip(1).all(|part| {
+            (2..=8).contains(&part.len())
+                && part
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric())
+        })
+}
+
+fn default_post_filename(slug: &str) -> String {
+    format!("{slug}.md")
+}
+
+fn require_default_post_for_localization(posts_dir: &Path, filename: &str) -> Result<(), String> {
+    let (slug, language) = spage_engine::posts::parse_post_filename(filename);
+    if language.is_none() {
+        return Ok(());
+    }
+    let default_filename = default_post_filename(&slug);
+    safe_existing_post_path(posts_dir, &default_filename)
+        .map(|_| ())
+        .map_err(|_| {
+            format!("文件名 {filename} 看起来像语言版本，但默认文章 {default_filename} 不存在")
+        })
+}
+
+fn stage_and_delete_posts(posts_dir: &Path, targets: &[PathBuf]) -> Result<(), String> {
+    stage_and_delete_posts_with(posts_dir, targets, |from, to| fs::rename(from, to))
+}
+
+fn stage_and_delete_posts_with<F>(
+    posts_dir: &Path,
+    targets: &[PathBuf],
+    mut rename: F,
+) -> Result<(), String>
+where
+    F: FnMut(&Path, &Path) -> std::io::Result<()>,
+{
+    let mut target_names = HashSet::new();
+    for source in targets {
+        if source.parent() != Some(posts_dir) {
+            return Err(format!("文章路径超出 posts 目录: {}", source.display()));
+        }
+        let filename = source
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| "文章文件名必须是有效的 Unicode".to_string())?;
+        validate_post_filename(filename)?;
+        if !target_names.insert(filename.to_string()) {
+            return Err(format!("删除目标重复: {filename}"));
+        }
+        let metadata = fs::symlink_metadata(source).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                format!("文件不存在: {filename}")
+            } else {
+                format!("读取文章文件失败: {error}")
+            }
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(format!("文章文件无效: {filename}"));
+        }
+        let canonical = source
+            .canonicalize()
+            .map_err(|e| format!("解析文章路径失败: {e}"))?;
+        if canonical.parent() != Some(posts_dir) {
+            return Err(format!("文章路径超出 posts 目录: {filename}"));
+        }
+    }
+
+    let staging_dir = unique_temp_path(posts_dir, "deleted-posts");
+    fs::create_dir(&staging_dir).map_err(|e| format!("创建文章回收目录失败: {e}"))?;
+
+    let mut staged: Vec<std::ffi::OsString> = Vec::new();
+    for source in targets {
+        let filename = source
+            .file_name()
+            .ok_or_else(|| "文章文件名无效".to_string())?
+            .to_owned();
+        let destination = staging_dir.join(&filename);
+        if let Err(error) = rename(source, &destination) {
+            let mut rollback_failures = Vec::new();
+            for staged_name in staged.iter().rev() {
+                if let Err(rollback_error) =
+                    rename(&staging_dir.join(staged_name), &posts_dir.join(staged_name))
+                {
+                    rollback_failures.push(format!(
+                        "{}: {rollback_error}",
+                        staged_name.to_string_lossy()
+                    ));
+                }
+            }
+            if rollback_failures.is_empty() {
+                let _ = fs::remove_dir(&staging_dir);
+                return Err(format!(
+                    "删除文章 {} 失败: {error}",
+                    filename.to_string_lossy()
+                ));
+            }
+            return Err(format!(
+                "删除文章 {} 失败: {error}；部分文件回滚失败（{}），请检查 {}",
+                filename.to_string_lossy(),
+                rollback_failures.join("；"),
+                staging_dir.display()
+            ));
+        }
+        staged.push(filename);
+    }
+
+    fs::remove_dir_all(&staging_dir).map_err(|e| {
+        format!(
+            "文章已移入回收目录，但清理 {} 失败: {e}",
+            staging_dir.display()
+        )
+    })
 }
 
 fn read_album_config(blog_dir: &Path) -> Result<serde_json::Value, String> {
@@ -788,6 +1289,371 @@ fn unique_temp_path(parent: &Path, purpose: &str) -> PathBuf {
         .unwrap_or_default()
         .as_nanos();
     parent.join(format!(".swritor-{purpose}-{}-{nonce}", std::process::id()))
+}
+
+#[cfg(test)]
+mod post_command_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_post_paths_and_non_markdown_files() {
+        assert!(validate_post_filename("article.md").is_ok());
+        assert!(validate_post_filename("article.zh-CN.md").is_ok());
+        assert!(validate_post_filename("../article.md").is_err());
+        assert!(validate_post_filename("article.txt").is_err());
+        assert!(validate_post_filename(".md").is_err());
+        assert!(validate_post_filename("article.md:stream.md").is_err());
+        assert!(validate_post_filename(" article.md").is_err());
+        assert!(validate_post_filename("article .md").is_err());
+        assert!(validate_post_filename("article?.md").is_err());
+        assert!(validate_post_filename("NUL.md").is_err());
+        assert!(validate_post_filename("COM1.notes.md").is_err());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_default_post_removes_only_its_markdown_versions() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        for filename in [
+            "article.md",
+            "article.ja.md",
+            "article.zh-CN.md",
+            "article.txt",
+            "other.md",
+        ] {
+            fs::write(posts.join(filename), "content").unwrap();
+        }
+
+        delete_post(
+            temp.path().to_string_lossy().into_owned(),
+            "article.md".into(),
+            Some(true),
+        )
+        .await
+        .unwrap();
+
+        assert!(!posts.join("article.md").exists());
+        assert!(!posts.join("article.ja.md").exists());
+        assert!(!posts.join("article.zh-CN.md").exists());
+        assert!(posts.join("article.txt").exists());
+        assert!(posts.join("other.md").exists());
+    }
+
+    #[tokio::test]
+    async fn deleting_one_post_requires_an_exact_existing_target() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(posts.join("article.ja.md"), "content").unwrap();
+
+        let result = delete_post(
+            temp.path().to_string_lossy().into_owned(),
+            "article.md".into(),
+            Some(true),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(posts.join("article.ja.md").exists());
+    }
+
+    #[tokio::test]
+    async fn exact_delete_does_not_infer_translation_membership() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(posts.join("guide.md"), "content").unwrap();
+        fs::write(posts.join("guide.api.md"), "content").unwrap();
+
+        delete_post(
+            temp.path().to_string_lossy().into_owned(),
+            "guide.md".into(),
+            Some(false),
+        )
+        .await
+        .unwrap();
+
+        assert!(!posts.join("guide.md").exists());
+        assert!(posts.join("guide.api.md").exists());
+    }
+
+    #[tokio::test]
+    async fn lists_versions_with_the_configured_default_language() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(
+            temp.path().join("config.json"),
+            "{\n  // Default language\n  \"language\": \"  ZH-cn  \"\n}",
+        )
+        .unwrap();
+        fs::write(posts.join("article.md"), "content").unwrap();
+        fs::write(posts.join("article.ja.md"), "content").unwrap();
+        fs::write(posts.join("other.en.md"), "content").unwrap();
+
+        let result = list_post_versions(
+            temp.path().to_string_lossy().into_owned(),
+            "article.md".into(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.default_language, "zh-CN");
+        assert_eq!(result.versions.len(), 2);
+        assert_eq!(result.versions[0].filename, "article.md");
+        assert_eq!(result.versions[1].language.as_deref(), Some("ja"));
+    }
+
+    #[tokio::test]
+    async fn rejects_duplicate_language_versions_case_insensitively() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(temp.path().join("config.json"), r#"{"language":"en"}"#).unwrap();
+        fs::write(posts.join("article.md"), "content").unwrap();
+        fs::write(posts.join("article.zh-CN.md"), "content").unwrap();
+
+        let result = create_post(
+            temp.path().to_string_lossy().into_owned(),
+            "article.zh-cn.md".into(),
+            "duplicate".into(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        let filenames: Vec<_> = fs::read_dir(&posts)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(
+            filenames
+                .iter()
+                .filter(|filename| filename.eq_ignore_ascii_case("article.zh-cn.md"))
+                .count(),
+            1
+        );
+        assert_eq!(
+            fs::read_to_string(posts.join("article.zh-CN.md")).unwrap(),
+            "content"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_translations_the_spage_frontend_cannot_select() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(temp.path().join("config.json"), r#"{"language":"en"}"#).unwrap();
+        fs::write(posts.join("article.md"), "default").unwrap();
+
+        let result = create_post(
+            temp.path().to_string_lossy().into_owned(),
+            "article.fr.md".into(),
+            "translation".into(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(!posts.join("article.fr.md").exists());
+    }
+
+    #[tokio::test]
+    async fn ignores_non_markdown_sidecars_when_creating_a_language_version() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(temp.path().join("config.json"), r#"{"language":"en"}"#).unwrap();
+        fs::write(posts.join("article.md"), "default").unwrap();
+        fs::write(posts.join("article.ja"), "sidecar").unwrap();
+
+        create_post(
+            temp.path().to_string_lossy().into_owned(),
+            "article.ja.md".into(),
+            "translation".into(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(posts.join("article.ja")).unwrap(),
+            "sidecar"
+        );
+        assert_eq!(
+            fs::read_to_string(posts.join("article.ja.md")).unwrap(),
+            "translation"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_ambiguous_localization_without_a_default_post() {
+        let temp = tempfile::tempdir().unwrap();
+        fs::create_dir(temp.path().join("posts")).unwrap();
+
+        let result = create_post(
+            temp.path().to_string_lossy().into_owned(),
+            "guide.api.md".into(),
+            "content".into(),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(!temp.path().join("posts/guide.api.md").exists());
+    }
+
+    #[test]
+    fn rolls_back_all_posts_when_a_later_move_fails() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        let first = posts.join("article.ja.md");
+        let second = posts.join("article.md");
+        fs::write(&first, "ja").unwrap();
+        fs::write(&second, "default").unwrap();
+
+        let mut forward_moves = 0;
+        let result =
+            stage_and_delete_posts_with(&posts, &[first.clone(), second.clone()], |from, to| {
+                if from.parent() == Some(posts.as_path()) {
+                    forward_moves += 1;
+                    if forward_moves == 2 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            "injected move failure",
+                        ));
+                    }
+                }
+                fs::rename(from, to)
+            });
+
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(first).unwrap(), "ja");
+        assert_eq!(fs::read_to_string(second).unwrap(), "default");
+        assert!(fs::read_dir(&posts).unwrap().all(|entry| !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".swritor-deleted-posts-")));
+    }
+
+    #[test]
+    fn validates_every_delete_target_before_moving_anything() {
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        let existing = posts.join("article.ja.md");
+        let missing = posts.join("article.md");
+        fs::write(&existing, "ja").unwrap();
+
+        let result = stage_and_delete_posts(&posts, &[existing.clone(), missing]);
+
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(existing).unwrap(), "ja");
+        assert!(fs::read_dir(&posts).unwrap().all(|entry| !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".swritor-deleted-posts-")));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rejects_symlinked_post_files_and_directories() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempfile::tempdir().unwrap();
+        let external = temp.path().join("external");
+        fs::create_dir(&external).unwrap();
+        fs::write(external.join("article.md"), "outside").unwrap();
+
+        let linked_file_blog = temp.path().join("linked-file-blog");
+        let linked_file_posts = linked_file_blog.join("posts");
+        fs::create_dir_all(&linked_file_posts).unwrap();
+        symlink(
+            external.join("article.md"),
+            linked_file_posts.join("article.md"),
+        )
+        .unwrap();
+        assert!(get_post(
+            linked_file_blog.to_string_lossy().into_owned(),
+            "article.md".into()
+        )
+        .await
+        .is_err());
+        assert!(save_post(
+            linked_file_blog.to_string_lossy().into_owned(),
+            "article.md".into(),
+            "changed".into(),
+        )
+        .await
+        .is_err());
+        assert!(create_post(
+            linked_file_blog.to_string_lossy().into_owned(),
+            "article.md".into(),
+            "changed".into(),
+        )
+        .await
+        .is_err());
+        assert!(delete_post(
+            linked_file_blog.to_string_lossy().into_owned(),
+            "article.md".into(),
+            Some(false),
+        )
+        .await
+        .is_err());
+
+        let linked_dir_blog = temp.path().join("linked-dir-blog");
+        fs::create_dir(&linked_dir_blog).unwrap();
+        symlink(&external, linked_dir_blog.join("posts")).unwrap();
+        assert!(delete_post(
+            linked_dir_blog.to_string_lossy().into_owned(),
+            "article.md".into(),
+            Some(true),
+        )
+        .await
+        .is_err());
+        assert_eq!(
+            fs::read_to_string(external.join("article.md")).unwrap(),
+            "outside"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn bulk_delete_rejects_a_matching_translation_symlink_before_deleting_anything() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempfile::tempdir().unwrap();
+        let posts = temp.path().join("posts");
+        fs::create_dir(&posts).unwrap();
+        fs::write(posts.join("article.md"), "default").unwrap();
+        fs::write(posts.join("article.fr.md"), "fr").unwrap();
+        let external = temp.path().join("external-ja.md");
+        fs::write(&external, "outside").unwrap();
+        symlink(&external, posts.join("article.ja.md")).unwrap();
+
+        let result = delete_post(
+            temp.path().to_string_lossy().into_owned(),
+            "article.md".into(),
+            Some(true),
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            fs::read_to_string(posts.join("article.md")).unwrap(),
+            "default"
+        );
+        assert_eq!(
+            fs::read_to_string(posts.join("article.fr.md")).unwrap(),
+            "fr"
+        );
+        assert!(fs::symlink_metadata(posts.join("article.ja.md"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read_to_string(external).unwrap(), "outside");
+    }
 }
 
 #[cfg(test)]

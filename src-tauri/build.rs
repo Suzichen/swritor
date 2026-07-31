@@ -42,9 +42,15 @@ fn main() {
     for line in lock.lines() {
         let line = line.trim();
         if line.starts_with("name = ") {
-            current_name = line.trim_start_matches("name = ").trim_matches('"').to_string();
+            current_name = line
+                .trim_start_matches("name = ")
+                .trim_matches('"')
+                .to_string();
         } else if line.starts_with("version = ") {
-            let v = line.trim_start_matches("version = ").trim_matches('"').to_string();
+            let v = line
+                .trim_start_matches("version = ")
+                .trim_matches('"')
+                .to_string();
             if current_name == "spage-engine" && engine_version == "unknown" {
                 engine_version = v;
             } else if current_name == "spage-scaffold" && template_version == "unknown" {
@@ -54,7 +60,10 @@ fn main() {
     }
 
     println!("cargo:rustc-env=SPAGE_ENGINE_VERSION={}", engine_version);
-    println!("cargo:rustc-env=SPAGE_TEMPLATE_VERSION={}", template_version);
+    println!(
+        "cargo:rustc-env=SPAGE_TEMPLATE_VERSION={}",
+        template_version
+    );
 
     println!("cargo:rerun-if-changed=capabilities");
     let capabilities = if std::env::var_os("CARGO_FEATURE_AUTOMATION").is_some() {
@@ -63,8 +72,6 @@ fn main() {
         "./capabilities/default.json"
     };
 
-    tauri_build::try_build(
-        tauri_build::Attributes::new().capabilities_path_pattern(capabilities),
-    )
-    .expect("failed to build Tauri application");
+    tauri_build::try_build(tauri_build::Attributes::new().capabilities_path_pattern(capabilities))
+        .expect("failed to build Tauri application");
 }

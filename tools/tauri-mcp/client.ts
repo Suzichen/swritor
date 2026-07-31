@@ -94,7 +94,29 @@ export async function disconnect(): Promise<void> {
 export async function pageSnapshot(): Promise<unknown> {
   const session = await connect();
   return session.execute(() => {
+    const isInsideClosedOverlay = (element: Element) => {
+      let current: Element | null = element;
+      while (current) {
+        if (current.matches("mdui-dropdown:not([open])")) {
+          const trigger = Array.from(current.children).find(
+            (child) => child.getAttribute("slot") === "trigger",
+          );
+          if (!trigger || (trigger !== element && !trigger.contains(element))) return true;
+        }
+        if (
+          current.matches("mdui-dialog:not([open]), [hidden]")
+          || current.getAttribute("aria-hidden") === "true"
+        ) {
+          return true;
+        }
+        const root = current.getRootNode();
+        current = current.parentElement || (root instanceof ShadowRoot ? root.host : null);
+      }
+      return false;
+    };
+
     const isVisible = (element: Element) => {
+      if (isInsideClosedOverlay(element)) return false;
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
       return (
@@ -130,6 +152,7 @@ export async function pageSnapshot(): Promise<unknown> {
       "[role]",
       "[tabindex]",
       "mdui-button",
+      "mdui-button-icon",
       "mdui-text-field",
       "mdui-select",
       "mdui-checkbox",
@@ -139,7 +162,11 @@ export async function pageSnapshot(): Promise<unknown> {
     ].join(",");
 
     const interactive = elements
-      .filter((element) => element.matches(interactiveSelector) && isVisible(element))
+      .filter((element) => {
+        if (!element.matches(interactiveSelector) || !isVisible(element)) return false;
+        const root = element.getRootNode();
+        return !(root instanceof ShadowRoot && root.host.matches(interactiveSelector));
+      })
       .slice(0, 250)
       .map((element, index) => {
         const rect = element.getBoundingClientRect();
@@ -168,11 +195,19 @@ export async function pageSnapshot(): Promise<unknown> {
         };
       });
 
+    const visibleBody = document.body.cloneNode(true) as HTMLElement;
+    visibleBody
+      .querySelectorAll("mdui-dialog:not([open]), mdui-dropdown:not([open]), [hidden], [aria-hidden='true']")
+      .forEach((element) => element.remove());
+
     return {
       title: document.title,
       url: location.href,
       viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
-      bodyText: (document.body.innerText || "").trim().replace(/\n{3,}/g, "\n\n").slice(0, 12_000),
+      bodyText: (visibleBody.innerText || visibleBody.textContent || "")
+        .trim()
+        .replace(/\n{3,}/g, "\n\n")
+        .slice(0, 12_000),
       interactive,
     };
   });
@@ -183,12 +218,55 @@ export async function findElement(selector?: string, text?: string): Promise<Web
   if (selector) return (await session.$(selector)) as unknown as WebdriverIO.Element;
   if (!text) throw new Error("Provide either selector or text");
 
+  const literal = JSON.stringify(text);
+  const attributeMatch = (await session.$(
+    `[aria-label=${literal}], [label=${literal}], [headline=${literal}], [title=${literal}]`,
+  )) as unknown as WebdriverIO.Element;
+  if (await attributeMatch.isExisting()) return attributeMatch;
+
+  const exactInteractiveMatch = (await session.$(
+    `//*[self::button or self::a or self::mdui-button or self::mdui-button-icon or ` +
+      `self::mdui-list-item or self::mdui-menu-item][normalize-space(.) = ${literal}]`,
+  )) as unknown as WebdriverIO.Element;
+  if (await exactInteractiveMatch.isExisting()) return exactInteractiveMatch;
+
   const ariaMatch = (await session.$(`aria/${text}`)) as unknown as WebdriverIO.Element;
   if (await ariaMatch.isExisting()) return ariaMatch;
 
-  const literal = JSON.stringify(text);
   const xpath = `//*[contains(normalize-space(.), ${literal})]`;
   return (await session.$(xpath)) as unknown as WebdriverIO.Element;
+}
+
+export async function clickElement(element: WebdriverIO.Element): Promise<void> {
+  const session = await connect();
+  const tagName = (await element.getTagName()).toLowerCase();
+  if (tagName === "mdui-menu-item") {
+    await session.execute((target: Element) => {
+      const control = target.shadowRoot?.querySelector<HTMLElement>(".container");
+      (control ?? target as HTMLElement).click();
+    }, element);
+    return;
+  }
+  await element.click();
+}
+
+export async function visiblePageText(): Promise<string> {
+  const session = await connect();
+  return session.execute(() => {
+    const values = [document.body.innerText || ""];
+    const roots: Array<Document | ShadowRoot> = [document];
+    while (roots.length) {
+      const root = roots.shift()!;
+      for (const element of root.querySelectorAll("*")) {
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+        for (const name of ["aria-label", "label", "headline", "title"] as const) {
+          const value = element.getAttribute(name);
+          if (value) values.push(value);
+        }
+      }
+    }
+    return values.join("\n");
+  });
 }
 
 export async function setElementValue(element: WebdriverIO.Element, value: string): Promise<void> {

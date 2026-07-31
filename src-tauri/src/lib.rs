@@ -26,8 +26,8 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-                .plugin(tauri_plugin_updater::Builder::new().build())
-                .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(AppState::new())
         .setup(|app| {
             restore_auth_on_startup(&app.handle());
@@ -41,6 +41,7 @@ pub fn run() {
             open_in_explorer,
             list_posts,
             get_post,
+            list_post_versions,
             save_post,
             delete_post,
             create_post,

@@ -50,6 +50,21 @@ pub struct PostDetail {
     pub raw: String,
 }
 
+/// 同一篇文章的默认内容与本地化版本
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostVersion {
+    pub filename: String,
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostVersions {
+    pub default_language: String,
+    pub versions: Vec<PostVersion>,
+}
+
 /// 相册中的照片
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AlbumPhoto {

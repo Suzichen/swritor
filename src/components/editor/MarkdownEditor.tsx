@@ -7,12 +7,14 @@ import { keymap, placeholder, EditorView } from "@codemirror/view";
 interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
+  onInitialValue: (value: string) => void;
   onSave: () => void;
 }
 
 export interface MarkdownEditorHandle {
   insert: (action: MarkdownAction) => void;
   focus: () => void;
+  blur: () => void;
 }
 
 export type MarkdownAction =
@@ -50,20 +52,24 @@ function saveKeymap(onSave: () => void) {
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor(
-  { value, onChange, onSave },
+  { value, onChange, onInitialValue, onSave },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const syncingValueRef = useRef(false);
   const onChangeRef = useRef(onChange);
+  const onInitialValueRef = useRef(onInitialValue);
   const onSaveRef = useRef(onSave);
 
   onChangeRef.current = onChange;
+  onInitialValueRef.current = onInitialValue;
   onSaveRef.current = onSave;
 
   useEffect(() => {
     if (!hostRef.current) return;
 
+    let initializing = true;
     const view = new EditorView({
       parent: hostRef.current,
       state: EditorState.create({
@@ -80,7 +86,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           saveKeymap(() => onSaveRef.current()),
           placeholder("在这里开始写作……"),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+            if (update.docChanged && !syncingValueRef.current && !initializing) {
+              onChangeRef.current(update.state.doc.toString());
+            }
           }),
           EditorView.theme({
             "&": { height: "100%" },
@@ -94,7 +102,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     });
 
     viewRef.current = view;
+    queueMicrotask(() => {
+      if (viewRef.current !== view) return;
+      initializing = false;
+      const initialValue = view.state.doc.toString();
+      if (initialValue !== value) onInitialValueRef.current(initialValue);
+    });
     return () => {
+      initializing = false;
       view.destroy();
       viewRef.current = null;
     };
@@ -103,12 +118,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   useEffect(() => {
     const view = viewRef.current;
     if (!view || view.state.doc.toString() === value) return;
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+    syncingValueRef.current = true;
+    try {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+    } finally {
+      syncingValueRef.current = false;
+    }
   }, [value]);
 
   useImperativeHandle(ref, () => ({
     insert: (action) => applyMarkdownAction(action, viewRef.current),
     focus: () => viewRef.current?.focus(),
+    blur: () => viewRef.current?.contentDOM.blur(),
   }), []);
 
   return <div ref={hostRef} className="markdown-editor" />;

@@ -665,7 +665,7 @@ mdui-layout-main {
 .post-editor-page {
   position: relative;
   display: grid;
-  grid-template-rows: 64px minmax(0, 1fr);
+  grid-template-rows: 60px minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -677,8 +677,8 @@ mdui-layout-main {
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px 0 12px;
+  gap: 8px;
+  padding: 0 16px 0 8px;
   border-bottom: 1px solid var(--mdui-color-outline-variant);
   background: var(--mdui-color-surface);
 }
@@ -711,12 +711,24 @@ mdui-layout-main {
 .post-editor-appbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+.post-editor-appbar-actions mdui-button-icon.is-translation {
+  color: var(--mdui-color-primary);
+}
+
+.post-translation-menu {
+  min-width: 220px;
+}
+
+.post-translation-delete {
+  color: var(--mdui-color-error);
 }
 
 .post-editor-workspace {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
@@ -725,92 +737,44 @@ mdui-layout-main {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   overflow-y: auto;
-  padding: 24px 20px 32px;
+  padding: 20px 16px 28px;
   border-right: 1px solid var(--mdui-color-outline-variant);
-  background: var(--mdui-color-surface-container-low);
+  background: var(--mdui-color-surface-container-lowest);
 }
 
 .post-meta-heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.post-meta-heading > div {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border-radius: 12px;
-  background: var(--mdui-color-primary-container);
-  color: var(--mdui-color-on-primary-container);
-}
-
-.post-meta-heading > span {
-  display: flex;
-  flex-direction: column;
-}
-
-.post-meta-heading strong {
-  font-size: 16px;
-}
-
-.post-meta-heading small {
-  color: var(--mdui-color-on-surface-variant);
-  font-size: 12px;
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 22px;
 }
 
 .post-meta-tag-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-top: 2px;
+  gap: 6px;
 }
 
 .post-meta-label {
-  display: flex;
-  align-items: center;
-  gap: 9px;
   color: var(--mdui-color-on-surface);
-}
-
-.post-meta-label > mdui-icon {
-  flex: 0 0 auto;
-  color: var(--mdui-color-primary);
-  font-size: 19px;
-}
-
-.post-meta-label > span {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.post-meta-label strong {
   font-size: 13px;
   font-weight: 600;
-}
-
-.post-meta-label small {
-  color: var(--mdui-color-on-surface-variant);
-  font-size: 11px;
+  line-height: 18px;
 }
 
 .post-meta-chip-box {
   display: flex;
-  min-height: 46px;
+  min-height: 40px;
   box-sizing: border-box;
   flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-  padding: 7px 9px;
+  gap: 4px;
+  padding: 5px 7px;
   border: 1px solid var(--mdui-color-outline-variant);
-  border-radius: 10px;
-  background: var(--mdui-color-surface-container-lowest);
+  border-radius: 6px;
+  background: var(--mdui-color-surface);
   transition: border-color 0.16s, box-shadow 0.16s, background-color 0.16s;
 }
 
@@ -829,10 +793,10 @@ mdui-layout-main {
   max-width: 100%;
   align-items: center;
   gap: 2px;
-  padding: 3px 3px 3px 9px;
-  border-radius: 7px;
-  background: var(--mdui-color-secondary-container);
-  color: var(--mdui-color-on-secondary-container);
+  padding: 2px 3px 2px 8px;
+  border-radius: 5px;
+  background: var(--mdui-color-surface-container-high);
+  color: var(--mdui-color-on-surface);
   font-size: 12px;
   line-height: 20px;
 }
@@ -861,7 +825,7 @@ mdui-layout-main {
 }
 
 .post-meta-chip-box input {
-  min-width: 132px;
+  min-width: 108px;
   flex: 1;
   padding: 5px 3px;
   border: 0;
@@ -878,7 +842,7 @@ mdui-layout-main {
 
 .post-content-panel {
   display: grid;
-  grid-template-rows: 52px minmax(0, 1fr) 30px;
+  grid-template-rows: 48px minmax(0, 1fr) 28px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -889,23 +853,43 @@ mdui-layout-main {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
-  padding: 0 12px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--mdui-color-outline-variant);
   background: var(--mdui-color-surface-container-lowest);
 }
 
 .post-format-actions {
   display: flex;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
+  gap: 1px;
   overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.post-format-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.post-format-action {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
 }
 
 .post-format-actions mdui-button-icon {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   font-size: 20px;
+}
+
+.post-format-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  flex: 0 0 1px;
+  background: var(--mdui-color-outline-variant);
 }
 
 
@@ -976,11 +960,37 @@ mdui-layout-main {
   align-items: center;
   gap: 10px;
   padding: 12px 12px 12px 16px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--mdui-color-inverse-surface);
   color: var(--mdui-color-inverse-on-surface);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
   font-size: 13px;
+}
+
+.post-editor-loading {
+  position: absolute;
+  z-index: 12;
+  top: 59px;
+  right: 0;
+  left: 0;
+}
+
+.post-editor-page[aria-busy="true"] .post-editor-workspace {
+  pointer-events: none;
+}
+
+.post-language-dialog-content {
+  display: grid;
+  min-width: min(420px, calc(100vw - 64px));
+  gap: 16px;
+  padding: 0 24px 8px;
+}
+
+.post-language-dialog-content p {
+  margin: 0;
+  color: var(--mdui-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .post-editor-notice.is-error mdui-icon {
@@ -1026,9 +1036,8 @@ mdui-layout-main {
 
 @media (max-width: 900px) {
   .post-editor-workspace {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 264px minmax(0, 1fr);
   }
-
 }
 
 @media (max-width: 680px) {
@@ -1043,6 +1052,7 @@ mdui-layout-main {
   }
 
   .post-meta-panel {
+    order: 2;
     flex: 0 0 auto;
     max-height: none;
     overflow: visible;
@@ -1051,17 +1061,36 @@ mdui-layout-main {
   }
 
   .post-content-panel {
-    min-height: 620px;
-    flex: 1 0 620px;
+    order: 1;
+    grid-template-rows: 48px minmax(0, 1fr) 28px;
+    min-height: max(360px, calc(100dvh - 56px));
+    flex: 1 0 max(360px, calc(100dvh - 56px));
   }
 
-  .post-editor-title span,
-  .post-editor-appbar-actions > mdui-tooltip {
+  .post-editor-toolbar {
+    padding: 0 8px;
+  }
+
+  .post-format-actions {
+    flex: 1 1 auto;
+  }
+
+  .post-editor-title span {
     display: none;
   }
 
   .post-editor-appbar-actions mdui-button {
     min-width: 0;
+  }
+
+  .post-editor-statusbar {
+    gap: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .post-editor-statusbar > span:nth-child(2) {
+    display: none;
   }
 
 }
@@ -1079,11 +1108,34 @@ mdui-layout-main {
   font-size: 20px;
 }
 
-.create-dialog {
-  min-width: 420px;
-}
 .create-dialog::part(panel) {
-  min-width: 420px;
+  width: min(420px, calc(100vw - 32px));
+  min-width: 0;
+}
+
+.post-create-dialog-content {
+  padding-bottom: 4px;
+}
+
+.post-create-dialog-content mdui-text-field {
+  width: 100%;
+}
+
+.post-list-error {
+  padding: 10px 14px;
+  border: 1px solid var(--mdui-color-error);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: var(--mdui-color-error-container);
+  color: var(--mdui-color-on-error-container);
+  font-size: 13px;
+}
+
+.post-dialog-error {
+  margin-top: 10px;
+  color: var(--mdui-color-error);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* 限制 mdui-select 下拉菜单高度，超出滚动 */

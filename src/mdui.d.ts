@@ -49,6 +49,7 @@ declare module "react" {
         headline?: string;
         "close-on-overlay-click"?: boolean;
         "close-on-esc"?: boolean;
+        onopen?: (event: Event) => void;
         onclose?: () => void;
       };
       "mdui-text-field": MduiBase & {
@@ -63,6 +64,7 @@ declare module "react" {
         rows?: number | string;
         disabled?: boolean;
         required?: boolean;
+        autofocus?: boolean;
         readonly?: boolean;
         clearable?: boolean;
         autosize?: boolean;
@@ -78,7 +80,12 @@ declare module "react" {
         clearable?: boolean;
         placement?: string;
       };
-      "mdui-menu-item": MduiBase & { value?: string; disabled?: boolean; icon?: string };
+      "mdui-menu-item": MduiBase & {
+        value?: string;
+        disabled?: boolean;
+        icon?: string;
+        "end-icon"?: string;
+      };
       "mdui-menu": MduiBase & { value?: string; dense?: boolean };
       "mdui-dropdown": MduiBase & {
         open?: boolean;
