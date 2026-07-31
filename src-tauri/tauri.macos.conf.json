@@ -10,12 +10,12 @@
         "title": "Swritor",
         "width": 1024,
         "height": 768,
+        "maximized": true,
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
         "titleBarStyle": "Transparent",
-        "hiddenTitle": true,
-        "center": true
+        "hiddenTitle": true
       }
     ]
   }

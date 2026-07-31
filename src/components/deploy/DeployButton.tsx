@@ -66,7 +66,7 @@ export function DeployButton({ sites, disabled, disabledReason, onSelect, label 
           <mdui-icon class="deploy-button-arrow" name="arrow_drop_down" />
         </div>
       </div>
-      <mdui-menu dense={size === "small" || undefined}>
+      <mdui-menu class="deploy-site-menu" dense={size === "small" || undefined}>
         {sites.map((site) => (
           <mdui-menu-item
             key={site.siteSlug}
